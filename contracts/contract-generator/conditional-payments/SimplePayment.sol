@@ -11,6 +11,7 @@ contract SimplePayment is ConditionalPayment {
         uint256 creationCost, uint256 amount, uint256 releaseTime, uint256 releaseAmount) 
         ConditionalPayment(base, promisor, promisee, Type.ContractType.SIMPLE_PAYMENT, contractDuration,
             creationCost, Type.DisputeType.NONE, amount, releaseTime, releaseAmount) {
+        
         super.setConditionMet(true);
     }
 }

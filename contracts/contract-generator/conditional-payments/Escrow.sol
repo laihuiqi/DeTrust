@@ -15,6 +15,7 @@ contract Escrow is ConditionalPayment {
         uint256 creationCost, Type.DisputeType dispute,  uint256 amount, uint256 releaseTime, uint256 releaseAmount) 
         ConditionalPayment(base, promisor, promisee, Type.ContractType.ESCROW, contractDuration,
             creationCost, dispute, amount, releaseTime, releaseAmount) {
+        
         _arbitratorAddress = arbitrator;
         _arbitrator = UserProfiles(arbitrator);
         _isApproved = false;
@@ -36,6 +37,7 @@ contract Escrow is ConditionalPayment {
 
     function approveRelease() public onlyPromisor {
         _isApproved = true;
+
         if (_arbitratorAddress == address(this)) {
             releaseFund();
         }

@@ -71,6 +71,7 @@ contract BaseContract {
         return contractRepositories[id]._disputeType;
     }
 
+    // address
     function getDisputeMechanism(uint id) public view returns (DisputeMechanism) {
         return contractRepositories[id]._disputeMechanism;
     }
