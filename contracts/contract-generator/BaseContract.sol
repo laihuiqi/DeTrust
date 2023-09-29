@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import { ContractUtility as Type } from "./ContractUtility.sol";
 import "../UserProfiles.sol";
@@ -9,29 +9,17 @@ contract BaseContract {
 
     uint256 counter = 0;
 
-    constructor(address promisor, address promisee, Type.ContractType contractType, 
-        uint256 contractDuration, uint256 creationCost, Type.DisputeType disputeType) {
-
-        Type.BasicProperties memory basicProperties = Type.BasicProperties({
-            _id: ++counter,
-            _contractAddress: address(this),
-            _promisor: UserProfiles(promisor),
-            _promisee: UserProfiles(promisee),
-            _consensus: Type.Consensus.NEW,
-            _contractType: contractType,
-            _createdAt: block.timestamp,
-            _contractDuration: contractDuration,
-            _currentCost: creationCost,
-            _disputeType: disputeType,
-            _disputeMechanism: DisputeMechanism(address(0))
-        });
-
-        contractRepositories[counter] = basicProperties;
+    modifier ownerOnly(uint id) {
+        require(tx.origin == getPromisor(id).getUserAddress());
+        _;
     }
 
-    modifier ownerOnly(uint id) {
-        require(msg.sender == getPromisor(id).getUserAddress());
-        _;
+    function addToRepo(uint256 id, Type.BasicProperties memory basicProperties) public {
+        contractRepositories[id] = basicProperties;
+    }
+
+    function getCounter() public returns (uint256) {
+        return ++counter;
     }
 
     function getContract(uint id) public view returns (Type.BasicProperties memory) {
@@ -40,6 +28,10 @@ contract BaseContract {
 
     function getContractAddress(uint id) public view returns (address) {
         return contractRepositories[id]._contractAddress;
+    }
+
+    function getContractProperties(uint id) public view returns (Type.BasicProperties memory) {
+        return contractRepositories[id];
     }
 
     function getPromisor(uint id) public view returns (UserProfiles) {
