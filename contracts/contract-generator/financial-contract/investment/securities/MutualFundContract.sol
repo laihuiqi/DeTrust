@@ -20,6 +20,7 @@ contract MutualFundContract {
     uint256 interestInterval;
     uint256 commisionRate;
     uint256 interestPaymentDate;
+    uint256 yieldCount = 0;
 
     mapping(address => uint256) public fundShareholders;
 
@@ -63,8 +64,19 @@ contract MutualFundContract {
         require(msg.sender == fundManager, "Only fund manager can pay interest!");
         require(block.timestamp >= interestPaymentDate, "Interest payment date has not reached!");
     
-        deTrustToken.transfer(fundHolder, fundValue.mul(fundShares).mul(yieldRate.sub(commisionRate)).div(100));
+        deTrustToken.approve(fundHolder, fundValue.mul(fundShares).mul(yieldRate.sub(commisionRate)).div(100));
         interestPaymentDate = interestPaymentDate.add(interestInterval);
+        yieldCount = yieldCount.add(1);
+    }
+
+    function redeemInterest() public {
+        // redeem the interest
+        require(state == FundState.Active, "Fund should be active!");
+        require(msg.sender == fundHolder, "You are not the fund holder!");
+        require(yieldCount > 0, "No interest to redeem!");
+
+        yieldCount = 0;
+        deTrustToken.transfer(fundManager, fundValue.mul(fundShares).mul(commisionRate).mul(yieldCount).div(100));
     }
 
     function updateYieldRate(uint256 _newYieldRate) public {

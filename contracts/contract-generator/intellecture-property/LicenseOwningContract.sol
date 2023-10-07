@@ -6,46 +6,45 @@ contract LicenseOwningContract {
 
     address owner;
     string content;
-    LicenseState state;
+    LicenseState state = LicenseState.Pending;
     bool licenseOfferedToPurchase;
     uint256 licensePrice;
-    uint256 lisenceRenewalPeriod;
+    uint256 licenseRenewalPeriod;
 
-    mapping(address => uint256) licenseApprovalSignature;
-
-    constructor(address _owner, string memory _content, uint256 _licensePrice, uint256 _lisenceRenewalPeriod) {
+    constructor(address _owner, string memory _content, uint256 _licensePrice, uint256 _licenseRenewalPeriod) {
         owner = _owner;
         content = _content;
         licensePrice = _licensePrice;
-        lisenceRenewalPeriod = _lisenceRenewalPeriod;
+        licenseRenewalPeriod = _licenseRenewalPeriod;
     }
 
-    function offerLicenseToPurchase() public {
+    function offerLicenseToPurchase(bool offer) public {
         // offer the license to purchase
+        require(msg.sender == owner, "You are not the owner of this license!");
+        licenseOfferedToPurchase = offer;
     }
 
-    function approveLicense() public {
-        // approve the license
+    function updateLicensePrice(uint256 _licensePrice) public {
+        // update the license price
+        require(msg.sender == owner, "You are not the owner of this license!");
+        licensePrice = _licensePrice;
     }
 
-    function rejectLicense() public {
-        // reject the license
+    function updateLicenseRenewalPeriod(uint256 _licenseRenewalPeriod) public {
+        // update the license renewal period
+        require(msg.sender == owner, "You are not the owner of this license!");
+        licenseRenewalPeriod = _licenseRenewalPeriod;
     }
 
-    function purchaseLicense() public payable {
-        // purchase the license
+    function getOwner() public view returns (address) {
+        return owner;
     }
 
-    function renewLicense() public payable {
-        // renew the license
+    function getLicenseRenewalPeriod() public view returns (uint256) {
+        return licenseRenewalPeriod;
     }
 
-    function terminateLicense() public {
-        // terminate the license
+    function getLicensePrice() public view returns (uint256) {
+        return licensePrice;
     }
-
-    function withdraw() public {
-        // withdraw the payment
-    }
-
 }

@@ -15,14 +15,15 @@ contract StockContract {
     StockState state;
     uint256 stockValue;
     uint256 shares;
-    uint256 dividendRate;
-    uint256 dividendPaymentInterval;
-    uint256 dividendPaymentDate;
+    uint256 dividenRate;
+    uint256 dividenPaymentInterval;
+    uint256 dividenPaymentDate;
+    uint256 dividenCount = 0;
 
     mapping(address => uint256) public shareholders;
 
     constructor(address _issuer, address _shareHolder, DeTrustToken _wallet, string memory _stockName, string memory _stockCode, uint256 _stockValue, 
-        uint256 _shares, uint256 _dividendRate, uint256 _dividendPaymentInterval, uint256 _firstDividenDate) {
+        uint256 _shares, uint256 _dividenRate, uint256 _dividenPaymentInterval, uint256 _firstdividenate) {
         deTrustToken = _wallet;
         issuer = _issuer;
         shareholder = _shareHolder;
@@ -31,9 +32,9 @@ contract StockContract {
         state = StockState.Issued;
         stockValue = _stockValue;
         shares = _shares;
-        dividendRate = _dividendRate;
-        dividendPaymentInterval = _dividendPaymentInterval;
-        dividendPaymentDate = _firstDividenDate;
+        dividenRate = _dividenRate;
+        dividenPaymentInterval = _dividenPaymentInterval;
+        dividenPaymentDate = _firstdividenate;
     }
 
     function buy() public {
@@ -52,21 +53,32 @@ contract StockContract {
         shareholder = _transferee;
     }
 
-    function payDividend() public {
-        // pay dividend to shareholders
+    function paydividen() public {
+        // pay dividen to shareholders
         require(state == StockState.Active, "Stock should be active!");
-        require(msg.sender == issuer, "Only issuer can pay dividend!");
-        require(block.timestamp >= dividendPaymentDate, "Dividend payment date has not reached!");
+        require(msg.sender == issuer, "Only issuer can pay dividen!");
+        require(block.timestamp >= dividenPaymentDate, "dividen payment date has not reached!");
 
-        deTrustToken.transfer(shareholder, stockValue.mul(shares).mul(dividendRate).div(100));
-        dividendPaymentDate = dividendPaymentDate.add(dividendPaymentInterval);
+        dividenCount = dividenCount.add(1);
+        deTrustToken.approve(shareholder, stockValue.mul(shares).mul(dividenRate).div(100));
+        dividenPaymentDate = dividenPaymentDate.add(dividenPaymentInterval);
     }
 
-    function updateDividenRate(uint256 _newDividendRate) public {
-        // update the dividend rate
-        require(msg.sender == issuer, "Only issuer can update dividend rate!");
+    function redeemDividen() public {
+        // redeem dividen
+        require(state == StockState.Active, "Stock should be active!");
+        require(msg.sender == shareholder, "You are not the shareholder!");
+        require(dividenCount > 0, "No dividen to redeem!");
+
+        dividenCount = 0;
+        deTrustToken.transfer(issuer, stockValue.mul(shares).mul(dividenCount).mul(dividenRate).div(100));
+    }
+
+    function updateDividenRate(uint256 _newDividenRate) public {
+        // update the dividen rate
+        require(msg.sender == issuer, "Only issuer can update dividen rate!");
         
-        dividendRate = _newDividendRate;
+        dividenRate = _newDividenRate;
     }
 
     function updateStockValue(uint256 _newStockValue) public {
