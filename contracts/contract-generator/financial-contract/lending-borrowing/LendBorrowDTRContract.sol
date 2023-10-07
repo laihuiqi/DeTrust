@@ -7,13 +7,12 @@ import "../../../DeTrustToken.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract LendBorrowEthContract is FinancialBaseContract {
+contract LendBorrowDTRContract is FinancialBaseContract {
     using SafeMath for uint256;
 
     DeTrustToken deTrustToken;
-    address payable borrower;
-    address payable lender;
-    address payable escrow = payable(address(this));
+    address borrower;
+    address lender;
     uint256 contractDuration; 
     uint256 creationCost;
     Type.DisputeType dispute;  
@@ -25,18 +24,19 @@ contract LendBorrowEthContract is FinancialBaseContract {
     bool isRepaid = false;
     bool isRetrieved = false;
 
-    mapping(uint256 => LendBorrowEthContract) public lendBorrowEthRepo;
+    mapping(uint256 => LendBorrowDTRContract) public lendBorrowTokenRepo;
 
     event Lend(address indexed from, address indexed to, uint256 value);
     event Borrow(address indexed from, address indexed to, uint256 value);
     event Repay(address indexed from, address indexed to, uint256 value);
     event Retrieve(address indexed from, address indexed to, uint256 value);
 
-    constructor(address _base, address payable _borrower, address payable _lender, uint256 _contractDuration, 
+    constructor(address _base, address _borrower, address _lender,  DeTrustToken _wallet, uint256 _contractDuration, 
         uint256 _creationCost, Type.DisputeType _dispute,  uint256 _amount) 
         FinancialBaseContract(_base, _borrower, _lender, Type.ContractType.LEND_BORROW_TOKEN, 
             _contractDuration, _creationCost, _dispute, _amount, block.timestamp, _amount){
     
+        deTrustToken = _wallet;
         borrower = _borrower;
         lender = _lender;
         contractDuration = _contractDuration;
@@ -44,16 +44,15 @@ contract LendBorrowEthContract is FinancialBaseContract {
         dispute = _dispute;
         amount = _amount;
         releaseTime = block.timestamp;
-        lendBorrowEthRepo[_basicProperties._id] = this;
+        lendBorrowTokenRepo[_basicProperties._id] = this;
     
     }
 
     function lend() public payable {
         require(!isLended, "The amount has been released!");
         require(msg.sender == lender, "You are not the lender!");
-        require(msg.value == amount, "The amount is not correct!");
 
-        escrow.transfer(msg.value);
+        deTrustToken.transfer(address(this), msg.value);
         isLended = true;
 
         emit Lend(msg.sender, address(this), msg.value);
@@ -63,20 +62,16 @@ contract LendBorrowEthContract is FinancialBaseContract {
         require(isLended, "The amount has not been released!");
         require(msg.sender == borrower, "You are not the borrower!");
 
-        borrower.transfer(amount);
+        deTrustToken.transfer(borrower, amount);
         isBorrowed = true;
     }
 
-    function repay() public payable {
+    function repay() public {
         require(isBorrowed, "The amount has not been borrowed!");
         require(msg.sender == borrower, "You are not the borrower!");
-        
-        uint256 amountToRepay = amount.add(amount.mul(interestRate).div(100) ** (
-            block.timestamp.sub(releaseTime)).div(30 days));
 
-        require(msg.value == amountToRepay, "The amount is not correct!");
-
-        escrow.transfer(amountToRepay);
+        deTrustToken.transfer(address(this),
+            amount.add(amount.mul(interestRate).div(100) ** (block.timestamp.sub(releaseTime)).div(30 days)));
         isRepaid = true;
 
         emit Repay(msg.sender, address(this), getAmount());
@@ -85,9 +80,14 @@ contract LendBorrowEthContract is FinancialBaseContract {
     function retrieve() public {
         require(isRepaid, "The amount has not been repaid!");
         require(msg.sender == lender, "You are not the lender!");
-
-        lender.transfer(amount);
+        
+        deTrustToken.transfer(lender, amount);
         isRetrieved = true;
+
+    }
+
+    function setInterestRate(uint256 _newRate) public {
+        interestRate = _newRate;
     }
 
     function terminate() public {
@@ -95,15 +95,10 @@ contract LendBorrowEthContract is FinancialBaseContract {
             !isBorrowed && block.timestamp > releaseTime.add(contractDuration), "The amount has not been repaid!");
 
         if (!isBorrowed) {
-            lender.transfer(amount);
+            deTrustToken.transfer(lender, amount);
         }
 
         selfdestruct(payable(address(this)));
-    }
-
-    function setInterestRate(uint256 _newRate) public {
-        require(msg.sender == lender, "You are not the lender!");
-        interestRate = _newRate;
     }
 
 }
