@@ -24,8 +24,6 @@ contract FutureContract {
     uint256 premium;
     bool isHold;
     string description;
-    ContractUtility.Signature sellerSignature;
-    ContractUtility.Signature buyerSignature;
 
     event BuyerVerify();
     event SellerVerify();
@@ -59,7 +57,6 @@ contract FutureContract {
     function buyerVerify() public {
         // buyer verify the future contract
         require(msg.sender == buyer, "You are not the buyer!");
-        // buyerSignature = buyer.signMessage();
         deTrustToken.transfer(address(this), premium);
         emit BuyerVerify();
     }
@@ -67,7 +64,6 @@ contract FutureContract {
     function sellerVerify() public {
         // seller verify the future contract
         require(msg.sender == seller, "You are not the seller!");
-        // sellerSignature = seller.signMessage();
         if (assetType == ObjectType.Nft) {
             asset_nft.transferFrom(seller, address(this), quantity);
         } else {

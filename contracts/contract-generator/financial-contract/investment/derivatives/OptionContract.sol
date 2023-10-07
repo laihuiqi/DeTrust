@@ -26,8 +26,6 @@ contract OptionContract {
     uint256 optionPremium;
     uint256 margin;
     bool isHold;
-    ContractUtility.Signature sellerSignature;
-    ContractUtility.Signature buyerSignature;
 
     event BuyerVerify();
     event SellerVerify();
@@ -59,7 +57,6 @@ contract OptionContract {
 
     function buyerVerify() public {
         require(msg.sender == optionBuyer, "You are not the buyer!");
-        // buyerSignature = buyer.signMessage();
         deTrustToken.transfer(optionSeller, optionPremium);
         agree();
         emit BuyerVerify();
@@ -67,7 +64,6 @@ contract OptionContract {
 
     function sellerVerify() public {
         require(msg.sender == optionSeller, "You are not the seller!");
-        // sellerSignature = seller.signMessage();
         agree();
         emit SellerVerify();
     }
@@ -88,7 +84,7 @@ contract OptionContract {
     function checkMarginPrice() public returns (bool) {
         // check margin maintainance that a traders must maintain to enter / hold a future position
         address toCheck = optionType == OptionType.CALL ? optionBuyer : optionSeller;
-        if (deTrustToken.balanceOf(optionBuyer) < margin) {
+        if (deTrustToken.balanceOf(toCheck) < margin) {
             if (isHold) {
                 _revertOption();
             } else {

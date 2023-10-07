@@ -1,49 +1,75 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "../../../../DeTrustToken.sol";
 
 contract BondContract {
+    using SafeMath for uint256;
+
+    DeTrustToken deTrustToken;
+
     address issuer;
+    address owner;
     string bondName;
     string bondCode;
-    uint256 issueQuantity;
+    uint256 quantity;
     uint256 issueDate;
-    uint256 maturityDate;
+    uint256 maturity;
     uint256 couponRate;
     uint256 couponPaymentInterval;
     uint256 bondPrice;
     uint256 faceValue;
     uint256 redemptionValue;
-    uint256 bondYield;
+    uint256 couponPaymentDate;
 
     mapping(address => uint256) public holders;
 
-    constructor(address _issuer, string memory _bondName, string memory _bondCode, 
-        uint256 _issueQuantity, uint256 _issueDate, uint256 _maturityDate, uint256 _couponRate, 
-        uint256 _couponPaymentInterval, uint256 _bondPrice, uint256 _faceValue, uint256 _redemptionValue, 
-        uint256 _bondYield) {
+    constructor(address _issuer, address _owner, DeTrustToken _wallet, string memory _bondName, 
+        string memory _bondCode, uint256 _quantity, uint256 _issueDate, uint256 _maturity, 
+        uint256 _couponRate, uint256 _couponPaymentInterval, uint256 _faceValue, 
+        uint256 _redemptionValue) {
+        deTrustToken = _wallet;
         issuer = _issuer;
+        owner = _owner;
         bondName = _bondName;
         bondCode = _bondCode;
-        issueQuantity = _issueQuantity;
+        quantity = _quantity;
         issueDate = _issueDate;
-        maturityDate = _maturityDate;
+        maturity = issueDate.add(_maturity);
         couponRate = _couponRate;
         couponPaymentInterval = _couponPaymentInterval;
-        bondPrice = _bondPrice;
         faceValue = _faceValue;
+        bondPrice = faceValue.mul(quantity);
         redemptionValue = _redemptionValue;
-        bondYield = _bondYield;
+        couponPaymentDate = issueDate.add(_couponPaymentInterval);
     }
 
-    function buy(uint256 _quantity) public {
+    function buy() public {
         // buy the bond
+        deTrustToken.transfer(issuer, bondPrice);
     }
 
     function transfer(address _transferee) public {
         // sell the bond
+        require(msg.sender == owner);
+        owner = _transferee;
     }
 
-    function repay() public {
-        // repay the bond
+    function payCoupon() public {
+        require(msg.sender == issuer, "Only issuer can pay coupon!");
+        require(block.timestamp >= couponPaymentDate, "Coupon payment date has not reached!");
+        deTrustToken.transfer(owner, couponRate.mul(faceValue).div(couponPaymentInterval));
+        couponPaymentDate = couponPaymentDate.add(couponPaymentInterval);
+    }
+
+    function payRedemption() public {
+        require(msg.sender == issuer, "Only issuer can pay redemption!");
+        require(block.timestamp >= maturity, "Bond has not matured!");
+        deTrustToken.transfer(owner, redemptionValue);
+    }
+
+    function endBond() public {
+        require(block.timestamp >= maturity, "Bond has not matured!");
+        selfdestruct(payable(address(this)));
     }
 }
