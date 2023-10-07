@@ -21,7 +21,7 @@ contract FutureContract {
     uint256 deliveryDate;
     uint256 futurePrice;
     uint256 margin;
-    uint256 deposit;
+    uint256 premium;
     bool isHold;
     string description;
     ContractUtility.Signature sellerSignature;
@@ -47,7 +47,7 @@ contract FutureContract {
         deliveryDate = block.timestamp + _deliveryDays.mul(1 days);
         futurePrice = _futurePrice;
         margin = _futurePrice.mul(3).div(2);
-        deposit = _deposit;
+        premium = _deposit;
         description = _description;
     }
 
@@ -56,16 +56,11 @@ contract FutureContract {
         _;
     }
 
-    modifier checkBuyerAccount() {
-        require(deTrustToken.balanceOf(buyer) >= futurePrice, "Buyer does not have enough balance!");
-        _;
-    }
-
     function buyerVerify() public {
         // buyer verify the future contract
         require(msg.sender == buyer, "You are not the buyer!");
         // buyerSignature = buyer.signMessage();
-        deTrustToken.transfer(address(this), deposit);
+        deTrustToken.transfer(address(this), premium);
         emit BuyerVerify();
     }
 
@@ -94,10 +89,10 @@ contract FutureContract {
         return true;
     }
 
-    function settle() public deliveryDatePassed checkBuyerAccount{
+    function settle() public deliveryDatePassed {
         // deliver the underlying asset to the buyer
         // transfer token with futures
-        deTrustToken.transfer(seller, futurePrice.sub(deposit));
+        deTrustToken.transfer(seller, futurePrice.sub(premium));
         if (assetType == ObjectType.Nft) {
             asset_nft.transferFrom(seller, buyer, quantity);
         } else {
@@ -109,7 +104,7 @@ contract FutureContract {
 
     function _revertFuture() internal {
         // revert the future contract
-        deTrustToken.transfer(seller, deposit);
+        deTrustToken.transfer(seller, premium);
         selfdestruct(payable(address(this)));
 
         emit RevertFuture();
