@@ -50,7 +50,8 @@ contract BondContract {
     function buy() public {
         // buy the bond
         require(state == BondState.Issued, "Bond should be issuing!");
-        
+        require(msg.sender == owner, "You are not the bond holder!");
+
         deTrustToken.transfer(issuer, bondPrice);
         state = BondState.Active;
     }

@@ -6,7 +6,7 @@ import "../../../../DeTrustToken.sol";
 contract StockContract {
     using SafeMath for uint256;
 
-    enum StockState { Issued, Active }
+    enum StockState { Issued, Active, Terminate }
     DeTrustToken deTrustToken;
     address issuer;
     address shareholder;
@@ -39,6 +39,8 @@ contract StockContract {
     function buy() public {
         // buy the stock
         require(state == StockState.Issued, "Stock should be issuing!");
+        require(msg.sender == shareholder, "You are not the shareholder!");
+
         deTrustToken.transfer(issuer, stockValue.mul(shares));
         state = StockState.Active;
     }
@@ -46,6 +48,7 @@ contract StockContract {
     function transfer(address _transferee) public {
         // transfer the stock
         require(msg.sender == shareholder, "You are not the shareholder!");
+        
         shareholder = _transferee;
     }
 
@@ -62,12 +65,24 @@ contract StockContract {
     function updateDividenRate(uint256 _newDividendRate) public {
         // update the dividend rate
         require(msg.sender == issuer, "Only issuer can update dividend rate!");
+        
         dividendRate = _newDividendRate;
     }
 
     function updateStockValue(uint256 _newStockValue) public {
         // update the stock value
         require(msg.sender == issuer, "Only issuer can update stock value!");
+        
         stockValue = _newStockValue;
+    }
+
+    function terminateStockContract() public {
+        // terminate the stock contract
+        require(msg.sender == issuer, "Only issuer can terminate stock contract!");
+        require(state == StockState.Active, "Stock should be active!");
+
+        deTrustToken.transfer(msg.sender, stockValue.mul(shares));
+        state = StockState.Terminate;
+        selfdestruct(payable(address(this)));
     }
 }
