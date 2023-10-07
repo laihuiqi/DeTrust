@@ -35,6 +35,12 @@ library ContractUtility {
         JURY
     }
 
+    struct Signature {
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+    }
+
     struct BasicProperties {
         uint256 _id;
         address _contractAddress;

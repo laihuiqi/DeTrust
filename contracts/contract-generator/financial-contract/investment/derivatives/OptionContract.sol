@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT 
 pragma solidity ^0.8.0;
+import "../../../ContractObjectToken.sol";
 
 contract OptionContract {
     enum OptionType { CALL, PUT } // holder to buy / holder to sell
@@ -9,8 +10,9 @@ contract OptionContract {
     address optionBuyer; // long position
     OptionType optionType;
     OptionStyle optionStyle;
-    string asset;
-    string code;
+    ContractObjectToken objectTokenAddress;
+    uint256 assetId;
+    ContractObjectToken.ObjectToken asset;
     uint256 quantity;
     uint256 deliveryDate;
     uint256 strikePrice;
@@ -19,14 +21,15 @@ contract OptionContract {
     uint256 margin;
 
     constructor(address _seller, address _buyer, OptionType _optionType, OptionStyle _optionStyle, 
-        string memory _asset, string memory _code, uint256 _quantity, uint256 _deliveryDate, 
+        ContractObjectToken _assetContract, uint256 _assetId, uint256 _quantity, uint256 _deliveryDate, 
         uint256 _strikePrice, uint256 _optionPremium, uint256 _premiumPaymentDate, uint256 _margin) {
         optionSeller = _seller;
         optionBuyer = _buyer;
         optionType = _optionType;
         optionStyle = _optionStyle;
-        asset = _asset;
-        code = _code;
+        objectTokenAddress = _assetContract;
+        assetId = _assetId;
+        asset = objectTokenAddress.getAsset(_assetId);
         quantity = _quantity;
         deliveryDate = _deliveryDate;
         strikePrice = _strikePrice;
