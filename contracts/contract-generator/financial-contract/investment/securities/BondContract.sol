@@ -6,12 +6,14 @@ import "../../../../DeTrustToken.sol";
 contract BondContract {
     using SafeMath for uint256;
 
+    enum BondState { Issued, Active, Redeemed }
     DeTrustToken deTrustToken;
 
     address issuer;
     address owner;
     string bondName;
     string bondCode;
+    BondState state;
     uint256 quantity;
     uint256 issueDate;
     uint256 maturity;
@@ -33,6 +35,7 @@ contract BondContract {
         owner = _owner;
         bondName = _bondName;
         bondCode = _bondCode;
+        state = BondState.Issued;
         quantity = _quantity;
         issueDate = _issueDate;
         maturity = issueDate.add(_maturity);
@@ -46,7 +49,10 @@ contract BondContract {
 
     function buy() public {
         // buy the bond
+        require(state == BondState.Issued, "Bond should be issuing!");
+        
         deTrustToken.transfer(issuer, bondPrice);
+        state = BondState.Active;
     }
 
     function transfer(address _transferee) public {
@@ -57,19 +63,24 @@ contract BondContract {
 
     function payCoupon() public {
         require(msg.sender == issuer, "Only issuer can pay coupon!");
+        require(state == BondState.Active, "Bond should be active!");
         require(block.timestamp >= couponPaymentDate, "Coupon payment date has not reached!");
-        deTrustToken.transfer(owner, couponRate.mul(faceValue).div(couponPaymentInterval));
+        
+        deTrustToken.transfer(owner, couponRate.mul(faceValue).div(couponPaymentInterval).div(100));
         couponPaymentDate = couponPaymentDate.add(couponPaymentInterval);
     }
 
     function payRedemption() public {
         require(msg.sender == issuer, "Only issuer can pay redemption!");
         require(block.timestamp >= maturity, "Bond has not matured!");
+        
         deTrustToken.transfer(owner, redemptionValue);
+        state = BondState.Redeemed;
     }
 
     function endBond() public {
-        require(block.timestamp >= maturity, "Bond has not matured!");
+        require(state == BondState.Redeemed, "Bond should be redeemed!");
+
         selfdestruct(payable(address(this)));
     }
 }
