@@ -23,7 +23,8 @@ library ContractUtility {
         FD,
         TRADE_AGREEMENT,
         CROSS_CHAIN_EX,
-        SMART_VOUCHER
+        SMART_VOUCHER,
+        LEND_BORROW_TOKEN
     }
 
     enum DisputeType {
