@@ -2,66 +2,77 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../../DeTrustToken.sol";
+import "../ContractUtility.sol";
+import "../BaseContract.sol";
 
 contract PurchaseBaseContract {
     using SafeMath for uint256;
 
-    DeTrustToken deTrustToken;
-    address payable seller;
-    address payable buyer;
-    string description;
-    uint256 price;
-    uint256 paymentDate;
-    uint256 deliveryDate;
-    uint256 sellerSignature;
-    uint256 buyerSignature;
-    bool isReceived = false;
-    bool isPaid = false;
+    BaseContract public base;
+    uint256 contractId;
+    ContractUtility.Purchase public purchase;
 
-    constructor(address _seller, address _buyer, DeTrustToken _wallet, string memory _description, uint256 _price, uint256 _insurance, uint256 _paymentDate, uint256 _deliveryDate) {
-        deTrustToken = _wallet;
-        seller = payable(_seller);
-        buyer = payable(_buyer);
-        description = _description;
-        price = _price;
-        paymentDate = _paymentDate;
-        deliveryDate = _deliveryDate;
+    constructor(BaseContract _base, address _seller, address _buyer, DeTrustToken _wallet, string memory _description, 
+        uint256 _price, uint256 _paymentDate, uint256 _deliveryDate, ContractUtility.Consensus _consensus, 
+        ContractUtility.DisputeType _dispute) {
+        
+        purchase = ContractUtility.Purchase(
+            _wallet,
+            _seller,
+            _buyer,
+            _description,
+            _price,
+            _paymentDate,
+            _deliveryDate,
+            false,
+            false
+        );
+
+        base = _base;
+
+        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.PURCHASE,
+            _consensus, _dispute, _seller, _buyer);
+
+        _wallet.transfer(address(_base), ContractUtility.getContractCost());
     }
 
     function pay() public {
         // pay the seller
-        require(!isPaid, "Payment has been made!");
-        require(paymentDate <= block.timestamp, "Payment date has not reached!");
-        require(msg.sender == buyer, "You are not the buyer!");
+        require(base.isSigned(contractId), "Contract has not been signed!");
+        require(base.isVerified(contractId), "Contract has not been verified!");
+        require(!purchase.isPaid, "Payment has been made!");
+        require(purchase.paymentDate <= block.timestamp, "Payment date has not reached!");
+        require(msg.sender == purchase.buyer, "You are not the buyer!");
 
-        deTrustToken.transfer(address(this), price);
-        isPaid = true;
+        purchase.deTrustToken.transfer(address(this), purchase.price);
+        purchase.isPaid = true;
     }
 
     function withdraw() public {
         // withdraw the payment
-        require(isPaid, "Payment has not been made!");
-        require(msg.sender == seller, "You are not the seller!");
-        require(paymentDate <= block.timestamp, "Payment date has not reached!");
-        require(isReceived, "Product has not been received!");
+        require(purchase.isPaid, "Payment has not been made!");
+        require(msg.sender == purchase.seller, "You are not the seller!");
+        require(purchase.paymentDate <= block.timestamp, "Payment date has not reached!");
+        require(purchase.isReceived, "Product has not been received!");
         
-        deTrustToken.transfer(seller, price);
+        purchase.deTrustToken.transfer(purchase.seller, purchase.price);
     }
 
     function receiveProduct() public {
-        require(msg.sender == buyer, "You are not the buyer!");
+        require(msg.sender == purchase.buyer, "You are not the buyer!");
 
-        isReceived = true;
+        purchase.isReceived = true;
     }
 
     function terminate() public {
         // terminate the contract
-        require(msg.sender == buyer || msg.sender == seller, "You are not involved in this contract!");
-        require((block.timestamp >= deliveryDate && !isReceived) || 
-            (block.timestamp >= paymentDate && !isPaid), "Delivery date has not reached!");
+        require(msg.sender == purchase.buyer || msg.sender == purchase.seller, 
+            "You are not involved in this contract!");
+        require((block.timestamp >= purchase.deliveryDate && !purchase.isReceived) || 
+            (block.timestamp >= purchase.paymentDate && !purchase.isPaid), "Delivery date has not reached!");
         
-        if (isPaid) {
-            deTrustToken.transfer(buyer, price);
+        if (purchase.isPaid) {
+            purchase.deTrustToken.transfer(purchase.buyer, purchase.price);
         }
         selfdestruct(payable(address(this)));
     }

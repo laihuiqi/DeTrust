@@ -1,114 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import { ContractUtility as Type } from "./ContractUtility.sol";
-import "../UserProfiles.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./ContractUtility.sol";
 import "../DisputeMechanism.sol";
 
 contract BaseContract {
-    mapping(uint256 => Type.BasicProperties) private contractRepositories;
+
+    using SafeMath for uint256;
 
     uint256 counter = 0;
 
-    modifier ownerOnly(uint id) {
-        require(tx.origin == getPromisor(id).getUserAddress());
-        _;
+    struct BasicProperties {
+        uint256 _id;
+        ContractUtility.ContractType _contractType;
+        ContractUtility.Consensus _consensus;
+        ContractUtility.DisputeType _disputeType;
+        DisputeMechanism _disputeMechanism;
+        address payer;
+        ContractUtility.Signature _ad1;
+        address payee;
+        ContractUtility.Signature _ad2;
+        uint256 isSigned;
+        uint256 isVerified;
     }
 
-    function addToRepo(uint256 id, Type.BasicProperties memory basicProperties) public {
-        contractRepositories[id] = basicProperties;
+    mapping(uint256 => BasicProperties) public generalRepo;
+    mapping(address => uint256) public idToAddressRepo;
+
+    function sign(uint256 contractId) public {
+        require(msg.sender == generalRepo[contractId].payer ||
+            msg.sender == generalRepo[contractId].payee, "You are not involved in this contract!");
+        generalRepo[contractId].isSigned = generalRepo[contractId].isSigned.add(1);
+        // Todo
     }
 
-    function getCounter() public returns (uint256) {
-        return ++counter;
+    function isSigned(uint256 contractId) public view returns (bool) {
+        return generalRepo[contractId].isSigned == 2;
     }
 
-    function getContract(uint id) public view returns (Type.BasicProperties memory) {
-        return contractRepositories[id];
+    function isVerified(uint256 contractId) public view returns (bool) {
+        return generalRepo[contractId].isVerified == ContractUtility.getVerifierAmount();
     }
 
-    function getContractAddress(uint id) public view returns (address) {
-        return contractRepositories[id]._contractAddress;
-    }
-
-    function getContractProperties(uint id) public view returns (Type.BasicProperties memory) {
-        return contractRepositories[id];
-    }
-
-    function getPromisor(uint id) public view returns (UserProfiles) {
-        return contractRepositories[id]._promisor;
-    }
-
-    function getPromisee(uint id) public view returns (UserProfiles) {
-        return contractRepositories[id]._promisee;
-    }
-
-    function getConsensus(uint id) public view returns (Type.Consensus) {
-        return contractRepositories[id]._consensus;
-    }
-
-    function getContractType(uint id) public view returns (Type.ContractType) {
-        return contractRepositories[id]._contractType;
-    }
-
-    function getCreationTime(uint id) public view returns (uint256) {
-        return contractRepositories[id]._createdAt;
-    }
-
-    function getContractDuration(uint id) public view returns (uint256) {
-        return contractRepositories[id]._contractDuration;
-    }
-
-    function getEndTime(uint id) public view returns (uint256) {
-        return contractRepositories[id]._createdAt 
-            + contractRepositories[id]._contractDuration;
-    }
-
-    function getCurrentCost(uint id) public view returns (uint256) {
-        return contractRepositories[id]._currentCost;
-    }
-
-    function getDisputeType(uint id) public view returns (Type.DisputeType) {
-        return contractRepositories[id]._disputeType;
-    }
-
-    // address
-    function getDisputeMechanism(uint id) public view returns (DisputeMechanism) {
-        return contractRepositories[id]._disputeMechanism;
-    }
-
-    function setConsensus(uint id, Type.Consensus consensus) internal {
-        contractRepositories[id]._consensus = consensus;
-    }
-
-    function setContractDuration(uint id, uint256 duration) public ownerOnly(id) {
-        contractRepositories[id]._contractDuration = duration;
-    }
-
-    function setCurrentCost(uint id, uint256 cost) internal  {
-        contractRepositories[id]._currentCost = cost;
-    }
-
-    function setDisputeType(uint id, Type.DisputeType _type) public ownerOnly(id) {
-        contractRepositories[id]._disputeType = _type;
-    }
-
-    function setDisputeMechanism(uint id, address dispute) public ownerOnly(id) {
-        contractRepositories[id]._disputeMechanism = DisputeMechanism(dispute);
-    }
-
-    function extendContractBy(uint id, uint256 _days) public ownerOnly(id) {
-        setContractDuration(id, getContractDuration(id) + _days * 1 days);
-    }
-
-    function shortenContractBy(uint id, uint256 _days) public ownerOnly(id) {
-        setContractDuration(id, getContractDuration(id) - _days * 1 days);
-    }
-
-    function increaseContractCost(uint id, uint256 _amount) internal {
-        setCurrentCost(id, getCurrentCost(id) + _amount);
-    }
-
-    function decreaseContractCost(uint id, uint256 _amount) internal {
-        setCurrentCost(id, getCurrentCost(id) - _amount);
+    function addToContractRepo(address contractAddress, ContractUtility.ContractType contractType, 
+        ContractUtility.Consensus consensus, ContractUtility.DisputeType dispute, 
+        address payer, address payee) public returns (uint256) {
+        counter.add(1);
+        idToAddressRepo[contractAddress] = counter;
+        generalRepo[counter] = BasicProperties(
+            counter,
+            contractType, 
+            consensus,
+            dispute,
+            DisputeMechanism(address(0)),
+            payer,
+            ContractUtility.Signature(0, 0, 0),
+            payee,
+            ContractUtility.Signature(0, 0, 0),
+            0,
+            0
+        );
+        return counter;
     }
 }

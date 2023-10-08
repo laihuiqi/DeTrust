@@ -2,108 +2,110 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../../../../DeTrustToken.sol";
+import "../../../ContractUtility.sol";
+import "../../../BaseContract.sol";
 
 contract BondContract {
     using SafeMath for uint256;
 
-    enum BondState { Issued, Active, Redeemed }
-    DeTrustToken deTrustToken;
+    BaseContract public base;
+    uint256 contractId;
+    ContractUtility.Bond public bond;
 
-    address issuer;
-    address owner;
-    string bondName;
-    string bondCode;
-    BondState state;
-    uint256 quantity;
-    uint256 issueDate;
-    uint256 maturity;
-    uint256 couponRate;
-    uint256 couponPaymentInterval;
-    uint256 bondPrice;
-    uint256 faceValue;
-    uint256 redemptionValue;
-    uint256 couponPaymentDate;
-    uint256 couponCount = 0;
-    bool isRedemptionReady = false;
-
-    mapping(address => uint256) public holders;
-
-    constructor(address _issuer, address _owner, DeTrustToken _wallet, string memory _bondName, 
+    constructor(BaseContract _base, address _issuer, address _owner, DeTrustToken _wallet, string memory _bondName, 
         string memory _bondCode, uint256 _quantity, uint256 _issueDate, uint256 _maturity, 
         uint256 _couponRate, uint256 _couponPaymentInterval, uint256 _faceValue, 
-        uint256 _redemptionValue) {
-        deTrustToken = _wallet;
-        issuer = _issuer;
-        owner = _owner;
-        bondName = _bondName;
-        bondCode = _bondCode;
-        state = BondState.Issued;
-        quantity = _quantity;
-        issueDate = _issueDate;
-        maturity = issueDate.add(_maturity);
-        couponRate = _couponRate;
-        couponPaymentInterval = _couponPaymentInterval;
-        faceValue = _faceValue;
-        bondPrice = faceValue.mul(quantity);
-        redemptionValue = _redemptionValue;
-        couponPaymentDate = issueDate.add(_couponPaymentInterval);
+        uint256 _redemptionValue, ContractUtility.Consensus _consensus, ContractUtility.DisputeType _dispute) {
+        
+        bond = ContractUtility.Bond(
+            _wallet,
+            _issuer,
+            _owner,
+            _bondName,
+            _bondCode,
+            ContractUtility.SecuritiesState.ISSUED,
+            _quantity,
+            _issueDate,
+            _issueDate.add(_maturity.mul(365 days)),
+            _couponRate,
+            _couponPaymentInterval,
+            _faceValue.mul(_quantity),
+            _faceValue,
+            _redemptionValue,
+            _issueDate.add(_couponPaymentInterval),
+            0,
+            false
+        );
+
+        base = _base;
+
+        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.BOND,
+            _consensus, _dispute, _issuer, _owner);
+
+        _wallet.transfer(address(_base), ContractUtility.getContractCost());
     }
 
     function buy() public {
         // buy the bond
-        require(state == BondState.Issued, "Bond should be issuing!");
-        require(msg.sender == owner, "You are not the bond holder!");
+        require(base.isSigned(contractId), "Contract has not been signed!");
+        require(base.isVerified(contractId), "Contract has not been verified!");
+        require(bond.state == ContractUtility.SecuritiesState.ISSUED, "Bond should be issuing!");
+        require(msg.sender == bond.owner, "You are not the bond holder!");
 
-        deTrustToken.transfer(issuer, bondPrice);
-        state = BondState.Active;
+        bond.deTrustToken.transfer(bond.issuer, bond.bondPrice);
+        bond.state = ContractUtility.SecuritiesState.ACTIVE;
     }
 
     function transfer(address _transferee) public {
         // sell the bond
-        require(msg.sender == owner);
-        owner = _transferee;
+        require(msg.sender == bond.owner);
+        require(bond.state == ContractUtility.SecuritiesState.ACTIVE, "Bond should be active!");
+        require(block.timestamp >= bond.maturity, "Bond has been redeemed");
+        bond.owner = _transferee;
     }
 
     function payCoupon() public {
-        require(msg.sender == issuer, "Only issuer can pay coupon!");
-        require(state == BondState.Active, "Bond should be active!");
-        require(block.timestamp >= couponPaymentDate, "Coupon payment date has not reached!");
+        require(msg.sender == bond.issuer, "Only issuer can pay coupon!");
+        require(bond.state == ContractUtility.SecuritiesState.ACTIVE, "Bond should be active!");
+        require(block.timestamp >= bond.couponPaymentDate, "Coupon payment date has not reached!");
         
-        couponCount = couponCount.add(1);
-        deTrustToken.approve(owner, couponRate.mul(faceValue).div(couponPaymentInterval).div(100));
-        couponPaymentDate = couponPaymentDate.add(couponPaymentInterval);
+        bond.cummulativeCoupon = bond.cummulativeCoupon.add(1);
+        bond.deTrustToken.approve(bond.owner, bond.couponRate.mul(bond.faceValue).div(bond.couponPaymentInterval).div(100));
+        bond.couponPaymentDate = bond.couponPaymentDate.add(bond.couponPaymentInterval);
     }
 
     function payRedemption() public {
-        require(msg.sender == issuer, "Only issuer can pay redemption!");
-        require(block.timestamp >= maturity, "Bond has not matured!");
+        require(msg.sender == bond.issuer, "Only issuer can pay redemption!");
+        require(block.timestamp >= bond.maturity, "Bond has not matured!");
         
-        isRedemptionReady = true;
-        deTrustToken.approve(owner, redemptionValue);
+        bond.isRedemptionReady = true;
+        bond.deTrustToken.approve(bond.owner, bond.redemptionValue);
     }
 
     function redeemCoupon() public {
-        require(msg.sender == owner, "Only bond holder can redeem coupon!");
-        require(state == BondState.Active, "Bond should be active!");
-        require(couponCount > 0, "No coupon to redeem!");
+        require(msg.sender == bond.owner, "Only bond holder can redeem coupon!");
+        require(bond.state == ContractUtility.SecuritiesState.ACTIVE, "Bond should be active!");
+        require(bond.cummulativeCoupon > 0, "No coupon to redeem!");
 
-        couponCount = 0;
-        deTrustToken.transfer(issuer, couponRate.mul(faceValue).mul(couponCount).div(couponPaymentInterval).div(100));
+        bond.cummulativeCoupon = 0;
+        bond.deTrustToken.transferFrom(bond.issuer, bond.owner,
+            bond.couponRate.mul(bond.faceValue).mul(bond.cummulativeCoupon)
+                .div(bond.couponPaymentInterval).div(100));
     }
 
     function redeemBond() public {
-        require(msg.sender == owner, "Only bond holder can redeem bond!");
-        require(state == BondState.Active, "Bond should be active!");
-        require(block.timestamp >= maturity, "Bond has not matured!");
-        require(isRedemptionReady, "Redemption is not ready!");
+        require(msg.sender == bond.owner, "Only bond holder can redeem bond!");
+        require(bond.state == ContractUtility.SecuritiesState.ACTIVE, "Bond should be active!");
+        require(block.timestamp >= bond.maturity, "Bond has not matured!");
+        require(bond.isRedemptionReady, "Redemption is not ready!");
 
-        isRedemptionReady = false;
-        deTrustToken.transfer(issuer, redemptionValue);
-        state = BondState.Redeemed;
+        bond.isRedemptionReady = false;
+        bond.deTrustToken.transferFrom(bond.issuer, bond.owner, bond.redemptionValue);
+        bond.state = ContractUtility.SecuritiesState.REDEEMED;
     }
 
     function endBond() public {
-        require(state == BondState.Redeemed, "Bond should be redeemed!");
+        require(bond.state == ContractUtility.SecuritiesState.REDEEMED, "Bond should be redeemed!");
 
         selfdestruct(payable(address(this)));
     }

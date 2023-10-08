@@ -2,101 +2,105 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../../../../DeTrustToken.sol";
+import "../../../ContractUtility.sol";
+import "../../../BaseContract.sol";
 
 contract MutualFundContract {
     using SafeMath for uint256;
 
-    enum FundState { Issued, Active, Terminated }
-    DeTrustToken deTrustToken;
+    BaseContract public base;
+    uint256 contractId;
+    ContractUtility.Fund public fund;
 
-    string fundName;
-    string fundDescription;
-    address fundManager;
-    address fundHolder;
-    FundState state;
-    uint256 fundValue;
-    uint256 fundShares;
-    uint256 yieldRate;
-    uint256 interestInterval;
-    uint256 commisionRate;
-    uint256 interestPaymentDate;
-    uint256 yieldCount = 0;
-
-    mapping(address => uint256) public fundShareholders;
-
-    constructor(DeTrustToken _wallet, string memory _fundName, string memory _fundDescription, address _fundManager, 
+    constructor(BaseContract _base, DeTrustToken _wallet, string memory _fundName, string memory _fundDescription, address _fundManager, 
         address _fundHolder, uint256 _fundValue, uint256 _fundShare, uint256 _yieldRate, uint256 _interestInterval, 
-        uint256 _commisionRate, uint256 _firstInterestDate) {
-        deTrustToken = _wallet;
-        fundName = _fundName;
-        fundDescription = _fundDescription;
-        fundManager = _fundManager;
-        fundHolder = _fundHolder;
-        state = FundState.Issued;
-        fundValue = _fundValue;
-        fundShares = _fundShare;
-        yieldRate = _yieldRate;
-        interestInterval = _interestInterval;
-        commisionRate = _commisionRate;
-        interestPaymentDate = _firstInterestDate;
+        uint256 _commisionRate, uint256 _firstInterestDate, ContractUtility.Consensus _consensus, 
+        ContractUtility.DisputeType _dispute) {
+    
+        fund = ContractUtility.Fund(
+            _wallet,
+            _fundName,
+            _fundDescription,
+            _fundManager,
+            _fundHolder,
+            ContractUtility.SecuritiesState.ISSUED,
+            _fundValue,
+            _fundShare,
+            _yieldRate,
+            _interestInterval,
+            _commisionRate,
+            _firstInterestDate,
+            0
+        );
+
+        base = _base;
+
+        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUND,
+            _consensus, _dispute, _fundManager, _fundHolder);
+
+        _wallet.transfer(address(_base), ContractUtility.getContractCost());
     }
 
     function buy() public {
         // buy the fund
-        require(state == FundState.Issued, "Fund should be issuing!");
-        require(msg.sender == fundHolder, "You are not the fund holder!");
+        require(base.isSigned(contractId), "Contract has not been signed!");
+        require(base.isVerified(contractId), "Contract has not been verified!");
+        require(fund.state == ContractUtility.SecuritiesState.ISSUED, "Fund should be issuing!");
+        require(msg.sender == fund.fundHolder, "You are not the fund holder!");
 
-        deTrustToken.transfer(fundManager, fundValue.mul(fundShares));
-        state = FundState.Active;
+        fund.deTrustToken.transfer(fund.fundManager, fund.fundValue.mul(fund.fundShares));
+        fund.state = ContractUtility.SecuritiesState.ACTIVE;
     }
 
     function transfer(address _transferee) public {
         // sell the fund
-        require(state == FundState.Active, "Fund should be active!");
-        require(msg.sender == fundHolder, "You are not the fund holder!");
+        require(fund.state == ContractUtility.SecuritiesState.ACTIVE, "Fund should be active!");
+        require(msg.sender == fund.fundHolder, "You are not the fund holder!");
 
-        fundHolder = _transferee;
+        fund.fundHolder = _transferee;
     }
 
     function payYield() public {
         // pay interest to the fund holders
-        require(state == FundState.Active, "Fund should be active!");
-        require(msg.sender == fundManager, "Only fund manager can pay interest!");
-        require(block.timestamp >= interestPaymentDate, "Interest payment date has not reached!");
+        require(fund.state == ContractUtility.SecuritiesState.ACTIVE, "Fund should be active!");
+        require(msg.sender == fund.fundManager, "Only fund manager can pay interest!");
+        require(block.timestamp >= fund.interestPaymentDate, "Interest payment date has not reached!");
     
-        deTrustToken.approve(fundHolder, fundValue.mul(fundShares).mul(yieldRate.sub(commisionRate)).div(100));
-        interestPaymentDate = interestPaymentDate.add(interestInterval);
-        yieldCount = yieldCount.add(1);
+        fund.deTrustToken.approve(fund.fundHolder, 
+            fund.fundValue.mul(fund.fundShares).mul(fund.yieldRate.sub(fund.commisionRate)).div(100));
+        fund.interestPaymentDate = fund.interestPaymentDate.add(fund.interestInterval);
+        fund.cummulativeYieldCount = fund.cummulativeYieldCount.add(1);
     }
 
     function redeemInterest() public {
         // redeem the interest
-        require(state == FundState.Active, "Fund should be active!");
-        require(msg.sender == fundHolder, "You are not the fund holder!");
-        require(yieldCount > 0, "No interest to redeem!");
+        require(fund.state == ContractUtility.SecuritiesState.ACTIVE, "Fund should be active!");
+        require(msg.sender == fund.fundHolder, "You are not the fund holder!");
+        require(fund.cummulativeYieldCount > 0, "No interest to redeem!");
 
-        yieldCount = 0;
-        deTrustToken.transfer(fundManager, fundValue.mul(fundShares).mul(commisionRate).mul(yieldCount).div(100));
+        fund.cummulativeYieldCount = 0;
+        fund.deTrustToken.transferFrom(fund.fundManager, fund.fundHolder,
+            fund.fundValue.mul(fund.fundShares).mul(fund.commisionRate).mul(fund.cummulativeYieldCount).div(100));
     }
 
     function updateYieldRate(uint256 _newYieldRate) public {
         // update the yield rate
-        require(msg.sender == fundManager, "Only fund manager can update yield rate!");
+        require(msg.sender == fund.fundManager, "Only fund manager can update yield rate!");
 
-        yieldRate = _newYieldRate;
+        fund.cummulativeYieldCount = _newYieldRate;
     }
 
     function updateCommisionRate(uint256 _newCommisionRate) public {
         // update the commision rate
-        require(msg.sender == fundManager, "Only fund manager can update commision rate!");
+        require(msg.sender == fund.fundManager, "Only fund manager can update commision rate!");
 
-        commisionRate = _newCommisionRate;
+        fund.commisionRate = _newCommisionRate;
     }
 
     function terminateFundContract() public {
-        require(msg.sender == fundHolder, "Only fund holder can terminate the fund contract!");
+        require(msg.sender == fund.fundHolder, "Only fund holder can terminate the fund contract!");
 
-        state = FundState.Terminated;
+        fund.state = ContractUtility.SecuritiesState.REDEEMED;
         selfdestruct(payable(address(this)));
     }
 }

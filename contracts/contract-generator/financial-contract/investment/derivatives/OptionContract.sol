@@ -3,138 +3,169 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "../../../ContractObjectToken.sol";
 import "../../../../DeTrustToken.sol";
 import "../../../ContractUtility.sol";
+import "../../../BaseContract.sol";
 
 contract OptionContract {
     using SafeMath for uint256;
 
-    DeTrustToken deTrustToken;
-    enum ObjectType { Token, Nft }
-    enum OptionType { CALL, PUT } // holder to buy / holder to sell
+    BaseContract public base;
+    uint256 contractId;
+    ContractUtility.Option public option;
+    bool otherInit = false;
 
-    address optionSeller; // short position
-    address optionBuyer; // long position
-    OptionType optionType;
-    ObjectType assetType;
-    IERC20 asset_token;
-    IERC721 asset_nft;
-    uint256 quantity;
-    uint256 deliveryDate;
-    uint256 strikePrice;
-    uint256 optionPremium;
-    uint256 margin;
-    bool isHold;
+    event BuyerInit();
+    event SellerInit();
 
-    event BuyerVerify();
-    event SellerVerify();
+    constructor(BaseContract _base, address _seller, address _buyer, DeTrustToken _wallet, ContractUtility.OptionType _optionType,  
+        address _derivativeAddress, ContractUtility.ObjectType _assetType, uint256 _assetCode, 
+        uint256 _quantity, uint256 _deliveryDate, uint256 _strikePrice, uint256 _optionPremium,
+        ContractUtility.Consensus _consensus, ContractUtility.DisputeType _dispute) {
+        
+        option = ContractUtility.Option(
+            _wallet,
+            _seller,
+            _buyer,
+            ContractUtility.DerivativeState.PENDING,
+            _optionType,
+            _assetType,
+            _assetCode,
+            _assetType == ContractUtility.ObjectType.TOKEN ? IERC20(_derivativeAddress) : IERC20(address(0)),
+            _assetType == ContractUtility.ObjectType.NFT ? IERC721(_derivativeAddress) : IERC721(address(0)),
+            _quantity,
+            block.timestamp.add(_deliveryDate.mul(1 days)),
+            _strikePrice,
+            _optionPremium,
+            _strikePrice.mul(3).div(2),
+            false);
+        
+        base = _base;
 
-    constructor(address _seller, address _buyer, DeTrustToken _wallet, OptionType _optionType,  
-        address _derivativeAddress, ObjectType _assetType, uint256 _quantity, uint256 _deliveryDate, 
-        uint256 _strikePrice, uint256 _optionPremium) {
-        optionSeller = _seller;
-        optionBuyer = _buyer;
-        deTrustToken = _wallet;
-        optionType = _optionType;
-        assetType = _assetType;
-        if (assetType == ObjectType.Nft) {
-            asset_nft = IERC721(_derivativeAddress);
-        } else {
-            asset_token = IERC20(_derivativeAddress);
-        }
-        quantity = _quantity;
-        deliveryDate = block.timestamp + _deliveryDate.mul(1 days);
-        strikePrice = _strikePrice;
-        optionPremium = _optionPremium;
-        margin = _strikePrice.mul(3).div(2);
+        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.OPTION,
+            _consensus, _dispute, _seller, _buyer);
+
+        _wallet.transfer(address(_base), ContractUtility.getContractCost());
     }
 
     modifier deliveryDatePassed() {
-        require(block.timestamp >= deliveryDate, "Delivery date has not reached!");
+        require(block.timestamp >= option.deliveryDate, "Delivery date has not reached!");
+        option.state = ContractUtility.DerivativeState.EXPIRED;
         _;
     }
 
-    function buyerVerify() public {
-        require(msg.sender == optionBuyer, "You are not the buyer!");
-        deTrustToken.transfer(optionSeller, optionPremium);
+    function buyerInit() public {
+        require(base.isSigned(contractId), "Contract has not been signed!");
+        require(base.isVerified(contractId), "Contract has not been verified!");
+        require(option.state == ContractUtility.DerivativeState.PENDING, "Option contract has been verified!");        require(msg.sender == option.optionBuyer, "You are not the buyer!");
+
+        option.deTrustToken.transfer(option.optionSeller, option.optionPremium);
         agree();
-        emit BuyerVerify();
+
+        if (otherInit) {
+            option.state = ContractUtility.DerivativeState.ACTIVE;
+        } else {
+            otherInit = true;
+        }
+        emit BuyerInit();
     }
 
-    function sellerVerify() public {
-        require(msg.sender == optionSeller, "You are not the seller!");
+    function sellerInit() public {
+        require(base.isSigned(contractId), "Contract has not been signed!");
+        require(base.isVerified(contractId), "Contract has not been verified!");
+        require(option.state == ContractUtility.DerivativeState.PENDING, "Option contract has been verified!");        require(msg.sender == option.optionSeller, "You are not the seller!");
+        require(msg.sender == option.optionSeller, "You are not the seller!");
+
         agree();
-        emit SellerVerify();
+        if (otherInit) {
+            option.state = ContractUtility.DerivativeState.ACTIVE;
+        } else {
+            otherInit = true;
+        }
+        emit SellerInit();
     }
 
     function agree() internal {
-        if ((optionType == OptionType.CALL && msg.sender == optionBuyer) ||
-            (optionType == OptionType.PUT && msg.sender == optionSeller)) {
-            deTrustToken.transfer(address(this), strikePrice.mul(quantity));
+        if ((option.optionType == ContractUtility.OptionType.CALL && msg.sender == option.optionBuyer) ||
+            (option.optionType == ContractUtility.OptionType.PUT && msg.sender == option.optionSeller)) {
+            option.deTrustToken.transfer(address(this), option.strikePrice.mul(option.quantity));
         } else {
-            if (assetType == ObjectType.Nft) {
-                asset_nft.approve(address(this), quantity); // token_id?
+            if (option.assetType == ContractUtility.ObjectType.NFT) {
+                option.asset_nft.transferFrom(msg.sender, address(this), option.assetCode); 
             } else {
-                asset_token.approve(address(this), quantity);
+                option.asset_token.transferFrom(msg.sender, address(this), option.quantity);
             }
         }
     }
 
     function checkMarginPrice() public returns (bool) {
         // check margin maintainance that a traders must maintain to enter / hold a future position
-        address toCheck = optionType == OptionType.CALL ? optionBuyer : optionSeller;
-        if (deTrustToken.balanceOf(toCheck) < margin) {
-            if (isHold) {
+        require(option.state == ContractUtility.DerivativeState.ACTIVE, "Option contract has not been verified!");
+        require(block.timestamp < option.deliveryDate, "Delivery date has reached!");
+        
+        address toCheck = option.optionType == ContractUtility.OptionType.CALL 
+                                                ? option.optionBuyer 
+                                                : option.optionSeller;
+        if (option.deTrustToken.balanceOf(toCheck) < option.margin) {
+            if (option.isHold) {
                 _revertOption();
             } else {
-                isHold = true;
+                option.isHold = true;
             }
             return false;
         }
         return true;
     }
 
-    function exerciseOption() public {
-        require(msg.sender == optionBuyer, "You are not the option buyer!");
+    function exerciseOption() public deliveryDatePassed {
+        require(msg.sender == option.optionBuyer, "You are not the option buyer!");
         // deliver the underlying asset to the buyer
         // transfer token with futures
-        if (optionType == OptionType.CALL) {
+        if (option.optionType == ContractUtility.OptionType.CALL) {
             // if the option is call, the buyer can exercise the option
-            deTrustToken.transfer(optionSeller, strikePrice.mul(quantity));
-            if (assetType == ObjectType.Nft) {
-                asset_nft.transferFrom(optionSeller, optionBuyer, quantity);
-            } else {
-                asset_token.transferFrom(optionSeller, optionBuyer, quantity);
-            }
+            option.deTrustToken.transfer(option.optionSeller, option.strikePrice.mul(option.quantity));
+            _returnAsset(option.optionBuyer);
 
         } else {
             // if the option is put, the seller can exercise the option
-            deTrustToken.transfer(optionBuyer, strikePrice.mul(quantity));
-            if (assetType == ObjectType.Nft) {
-                asset_nft.transferFrom(optionBuyer, optionSeller, quantity);
-            } else {
-                asset_token.transferFrom(optionBuyer, optionSeller, quantity);
-            }
+            option.deTrustToken.transfer(option.optionBuyer, option.strikePrice.mul(option.quantity));
+            
+            _returnAsset(option.optionSeller);
         }
     }
 
     function cancelExercise() public {
-        require(msg.sender == optionBuyer, "You are not the option buyer!");
-        if (optionType == OptionType.PUT) {
-            deTrustToken.transfer(optionSeller, strikePrice.mul(quantity));
+        require(option.state == ContractUtility.DerivativeState.ACTIVE, "Option contract has not been verified!");
+        require(msg.sender == option.optionBuyer, "You are not the option buyer!");
+        require(block.timestamp < option.deliveryDate, "Delivery date has reached!");
+
+        if (option.optionType == ContractUtility.OptionType.PUT) {
+            option.deTrustToken.transfer(option.optionSeller, option.strikePrice.mul(option.quantity));
+            _returnAsset(option.optionBuyer);
         } else {
-            deTrustToken.transfer(optionBuyer, strikePrice.mul(quantity));
+            option.deTrustToken.transfer(option.optionBuyer, option.strikePrice.mul(option.quantity));
+            _returnAsset(option.optionSeller);
         }
     }
 
     function _revertOption() internal {
         // revert the option contract
-        if (optionType == OptionType.CALL) {
-            deTrustToken.transfer(optionBuyer, optionPremium);
+        if (option.optionType == ContractUtility.OptionType.CALL) {
+            option.deTrustToken.transfer(option.optionBuyer, option.optionPremium);
+            _returnAsset(option.optionSeller);
         } else {
-            deTrustToken.transfer(optionSeller, optionPremium);
+            option.deTrustToken.transfer(option.optionSeller, option.optionPremium);
+            _returnAsset(option.optionBuyer);
         }
+        
         selfdestruct(payable(address(this)));
+    }
+
+    function _returnAsset(address _returnAddress) internal {
+        if (option.assetType == ContractUtility.ObjectType.NFT) {
+            option.asset_nft.transferFrom(address(this), _returnAddress, option.assetCode);
+        } else {
+            option.asset_token.transferFrom(address(this), _returnAddress, option.quantity);
+        } 
     }
 }
