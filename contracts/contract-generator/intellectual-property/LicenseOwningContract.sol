@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract LicenseOwningContract {
+    using SafeMath for uint256;
+
     enum LicenseState{ Pending, Approved, Rejected }
 
     address owner;
@@ -15,7 +18,7 @@ contract LicenseOwningContract {
         owner = _owner;
         content = _content;
         licensePrice = _licensePrice;
-        licenseRenewalPeriod = _licenseRenewalPeriod;
+        licenseRenewalPeriod = _licenseRenewalPeriod.mul(1 days);
     }
 
     function offerLicenseToPurchase(bool offer) public {

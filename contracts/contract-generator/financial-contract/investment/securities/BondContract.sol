@@ -21,7 +21,7 @@ contract BondContract {
             _wallet,
             _issuer,
             _owner,
-            _bondName,
+            _bondName, // contract title
             _bondCode,
             ContractUtility.SecuritiesState.ISSUED,
             _quantity,
@@ -32,7 +32,7 @@ contract BondContract {
             _faceValue.mul(_quantity),
             _faceValue,
             _redemptionValue,
-            _issueDate.add(_couponPaymentInterval),
+            _issueDate.add(_couponPaymentInterval.mul(30 days)),
             0,
             false
         );

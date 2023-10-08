@@ -21,7 +21,7 @@ contract LendBorrowEthContract {
     event Retrieve(address indexed from, address indexed to, uint256 value);
 
     constructor(BaseContract _base, address _borrower, address _lender, DeTrustToken _wallet, uint256 _contractDuration, 
-        uint256 _creationCost, ContractUtility.DisputeType _dispute,  uint256 _amount,
+        uint256 _releaseTime, ContractUtility.DisputeType _dispute,  uint256 _amount,
         ContractUtility.Consensus _consensus){
     
         lendBorrowEth = ContractUtility.LendBorrow(
@@ -29,9 +29,8 @@ contract LendBorrowEthContract {
             _borrower,
             _lender,
             _contractDuration,
-            _creationCost,
             _amount,
-            block.timestamp,
+            _releaseTime,
             0,
             false,
             false,
@@ -59,6 +58,7 @@ contract LendBorrowEthContract {
     }
 
     function borrow() public {
+        require(block.timestamp >= lendBorrowEth.releaseTime, "The release time has not reached!");
         require(lendBorrowEth.isLended, "The amount has not been released!");
         require(msg.sender == lendBorrowEth.borrower, "You are not the borrower!");
 
@@ -89,7 +89,8 @@ contract LendBorrowEthContract {
 
     function terminate() public {
         require(lendBorrowEth.isRetrieved || 
-            !lendBorrowEth.isBorrowed && block.timestamp > lendBorrowEth.releaseTime.add(lendBorrowEth.contractDuration), 
+            !lendBorrowEth.isBorrowed && block.timestamp > lendBorrowEth.releaseTime.add(
+                lendBorrowEth.contractDuration.mul(1 days)), 
             "The amount has not been repaid!");
 
         if (!lendBorrowEth.isBorrowed) {

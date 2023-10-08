@@ -47,7 +47,7 @@ contract ServiceBaseContract {
 
         service.paymentCount = service.paymentCount.add(1);
         service.deTrustToken.approve(service.serviceProvider, service.singlePayment);
-        service.paymentDate = service.paymentDate.add(service.paymentTerm);
+        service.paymentDate = service.paymentDate.add(service.paymentTerm.mul(1 days));
     }
 
     function withdraw() public {
@@ -62,7 +62,7 @@ contract ServiceBaseContract {
     function terminate() public {
         // terminate the contract
         require(msg.sender == service.client || msg.sender == service.serviceProvider, "You are not involved in this contract!");
-        require(block.timestamp >= service.contractDuration, "Contract duration has not reached!");
+        require(block.timestamp >= service.contractDuration.mul(1 days), "Contract duration has not reached!");
     
         service.deTrustToken.transfer(service.client, service.singlePayment.mul(service.paymentCount));
         selfdestruct(payable(address(this)));

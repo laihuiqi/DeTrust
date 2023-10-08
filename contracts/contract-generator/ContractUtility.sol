@@ -143,7 +143,6 @@ library ContractUtility {
         address borrower;
         address lender;
         uint256 contractDuration; 
-        uint256 creationCost;
         uint256 amount; 
         uint256 releaseTime; 
         uint256 interestRate;
