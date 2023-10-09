@@ -12,16 +12,21 @@ contract Accounts {
 
     struct Account {
         bool isActive;
+        uint256 accountNumber;
         AccountType accountType;
     }
 
     mapping(address => Account) private accountStore;
-    uint256 numAccounts;
+    uint256 numAccounts = 0;
 
     constructor() {
         owner = msg.sender;
-        accountStore[msg.sender] = Account(true, AccountType.ADMIN);
-        numAccounts = 1;
+        accountStore[msg.sender] = Account(
+            true,
+            numAccounts,
+            AccountType.ADMIN
+        );
+        numAccounts++;
     }
 
     modifier onlyOwner() {
@@ -50,12 +55,12 @@ contract Accounts {
     }
 
     function registerAccount() public {
-        accountStore[msg.sender] = Account(true, AccountType.USER);
+        accountStore[msg.sender] = Account(true, numAccounts, AccountType.USER);
         numAccounts++;
     }
 
     function addAccount(address address_) public onlyAdmin {
-        accountStore[address_] = Account(true, AccountType.USER);
+        accountStore[address_] = Account(true, numAccounts, AccountType.USER);
         numAccounts++;
     }
 
