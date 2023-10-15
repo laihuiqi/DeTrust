@@ -3,24 +3,31 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../DisputeMechanism.sol";
-import "../DeTrustToken.sol";
 import "./intellectual-property/LicenseOwningContract.sol";
 
+/**
+ * @title Contract Utility
+ * @dev This contract contains all the utility functions for the contracts.
+ *
+ * It contains:
+    * Enumerations for contract types, dispute types, consensus, and tiers.
+    * Structs for common, future, option, bond, fund, stock, lend-borrow, simple payment, 
+      smart voucher, content licensing, lease, purchase, and service contracts, with some
+      related enumerations.
+    * Function to get contract cost based on contract type, verifier amount and contract completion 
+      reward for each tier.
+ */
+
 library ContractUtility {
-    enum Consensus {
-        NEW,
-        PENDING,
-        PASS,
-        FAIL
-    }
+    enum ContractState { DRAFT, INPROGRESS, DISPUTED, COMPLETED, VOIDED }
 
     enum ContractType {
+        COMMON,
         FUTURE,
         OPTION,
         BOND,
         FUND,
         STOCK,
-        LEND_BORROW_DTR,
         LEND_BORROW_ETH,
         SIMPLE_PAYMENT,
         SMART_VOUCHER,
@@ -38,59 +45,57 @@ library ContractUtility {
         JURY
     }
 
-    struct Signature {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
+    enum Tier { A, B, C, D }
+
+    enum VerificationState { PENDING, LEGITIMATE, FRAUDULENT }
+
+    struct Common {
+        string title;
+        string contractType;
+        address payable initiator;
+        address payable respondent;
+        string[] obligationTitle;
+        string[] obligationDescription;
+        uint256[] paymentAmount;
+        address payable[] payer;
+        address payable[] payee;
     }
 
-    enum ObjectType { TOKEN, NFT }
     enum DerivativeState{ PENDING, ACTIVE, EXPIRED }
 
     struct Future {
-        DeTrustToken deTrustToken;
-        address seller;
-        address buyer;
+        address payable seller;
+        address payable buyer;
         DerivativeState state;
-        ObjectType assetType;
-        IERC20 asset_token;
-        IERC721 asset_nft;
+        string assetType;
         uint256 assetCode;
         uint256 quantity;
         uint256 deliveryDate;
         uint256 futurePrice;
         uint256 margin;
-        uint256 premium;
-        bool isHold;
         string description;
     }
 
     enum OptionType { CALL, PUT }
 
     struct Option {
-        DeTrustToken deTrustToken;
-        address optionSeller; // short position
-        address optionBuyer; // long position
+        address payable optionSeller; // short position
+        address payable optionBuyer; // long position
         DerivativeState state;
         OptionType optionType;
-        ObjectType assetType;
+        string assetType;
         uint256 assetCode;
-        IERC20 asset_token;
-        IERC721 asset_nft;
         uint256 quantity;
         uint256 deliveryDate;
         uint256 strikePrice;
         uint256 optionPremium;
-        uint256 margin;
-        bool isHold;
     }
 
     enum SecuritiesState { ISSUED, ACTIVE, REDEEMED }
 
     struct Bond {
-        DeTrustToken deTrustToken;
-        address issuer;
-        address owner;
+        address payable issuer;
+        address payable owner;
         string bondName;
         string bondCode;
         SecuritiesState state;
@@ -103,16 +108,13 @@ library ContractUtility {
         uint256 faceValue;
         uint256 redemptionValue;
         uint256 couponPaymentDate;
-        uint256 cummulativeCoupon;
-        bool isRedemptionReady;
     }
 
     struct Fund {
-        DeTrustToken deTrustToken;
         string fundName;
         string fundDescription;
-        address fundManager;
-        address fundHolder;
+        address payable fundManager;
+        address payable fundHolder;
         SecuritiesState state;
         uint256 fundValue;
         uint256 fundShares;
@@ -120,13 +122,11 @@ library ContractUtility {
         uint256 interestInterval;
         uint256 commisionRate;
         uint256 interestPaymentDate;
-        uint256 cummulativeYieldCount;
     }
 
     struct Stock {
-        DeTrustToken deTrustToken;
-        address issuer;
-        address shareholder;
+        address payable issuer;
+        address payable shareholder;
         string stockName;
         string stockCode;
         SecuritiesState state;
@@ -135,32 +135,23 @@ library ContractUtility {
         uint256 dividenRate;
         uint256 dividenPaymentInterval;
         uint256 dividenPaymentDate;
-        uint256 dividenCount;
     }
 
     struct LendBorrow {
-        DeTrustToken deTrustToken;
-        address borrower;
-        address lender;
+        address payable borrower;
+        address payable lender;
         uint256 contractDuration; 
         uint256 amount; 
         uint256 releaseTime; 
         uint256 interestRate;
-        bool isLended;
-        bool isBorrowed;
-        bool isRepaid;
-        bool isRetrieved;
     }
 
     struct SimplePayment {
-        DeTrustToken deTrustToken;
-        address payer;
-        address payee;
+        address payable payer;
+        address payable payee;
         uint256 amount;
         uint256 paymentDate;
         string description;
-        bool isPaid;
-        bool isWithdrawn;
     }
 
     enum VoucherType { DISCOUNT, GIFT }
@@ -180,24 +171,20 @@ library ContractUtility {
     enum LicenseState{ PENDING, ACTIVE, EXPIRED }
 
     struct ContentLicensing {
-        DeTrustToken deTrustToken;
-        address owner;
-        address licensee;
+        address payable owner;
+        address payable licensee;
         LicenseOwningContract license;
         LicenseState state;
         uint256 price;
         uint256 startDate;
         uint256 endDate;
-        uint256 payment;
-        bool terminating;
     }
 
     enum LeaseState { PENDING, ACTIVE, TERMINATED }
 
     struct Lease {
-        DeTrustToken deTrustToken;
-        address landlord;
-        address tenant;
+        address payable landlord;
+        address payable tenant;
         string description;
         LeaseState state;
         uint256 startDate;
@@ -207,43 +194,71 @@ library ContractUtility {
         uint256 deposit;
         uint256 occupancyLimit;
         uint256 stampDuty;
-        uint256 paymentCount;
     }
     
     struct Purchase {
-        DeTrustToken deTrustToken;
-        address seller;
-        address buyer;
+        address payable seller;
+        address payable buyer;
         string description;
         uint256 price;
         uint256 paymentDate;
         uint256 deliveryDate;
-        bool isReceived;
-        bool isPaid;
     }
 
     enum ServiceType { FREELANCE, SUBCRIPTION }
 
     struct Service {
-        DeTrustToken deTrustToken;
         ServiceType serviceType;
-        address serviceProvider;
-        address client;
+        address payable serviceProvider;
+        address payable client;
         uint256 contractDuration;
         string description;
         uint256 paymentTerm;
         uint256 singlePayment;
         uint256 paymentDate;
-        uint256 paymentCount;
     }
 
-    function getContractCost() public pure returns (uint256) {
-        // dependes on contract type and user tier
-        return 500;
-    }
-
-    function getVerifierAmount() public pure returns (uint256) {
+    // get contract cost based on user tier
+    function getContractCost(Tier tier) public pure returns (uint8) {
         // depends on user tier
-        return 5;
+        if (tier == Tier.A) {
+            return 20;
+        } else if (tier == Tier.B) {
+            return 40;
+        } else if (tier == Tier.C) {
+            return 80;
+        } else if (tier == Tier.D) {
+            return 100;
+        }
+        return 126;
+    }
+
+    // get verifier amount based on user tier
+    function getVerifierAmount(Tier tier) public pure returns (uint8) {
+        // depends on user tier
+        if (tier == Tier.A) {
+            return 4;
+        } else if (tier == Tier.B) {
+            return 8;
+        } else if (tier == Tier.C) {
+            return 10;
+        } else if (tier == Tier.D) {
+            return 20;
+        }
+        return 120;
+    }
+
+    // get contract completion reward based on user tier
+    function getContractCompletionReward(Tier tier) public pure returns (uint8) {
+        if (tier == Tier.A) {
+            return 1;
+        } else if (tier == Tier.B) {
+            return 5;
+        } else if (tier == Tier.C) {
+            return 10;
+        } else if (tier == Tier.D) {
+            return 15;
+        }
+        return 0;
     }
 }

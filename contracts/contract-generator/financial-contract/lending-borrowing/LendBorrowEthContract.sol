@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "../../ContractUtility.sol";
-import "../../../DeTrustToken.sol";
 import "../../BaseContract.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,95 +13,123 @@ contract LendBorrowEthContract {
     uint256 contractId;
     address payable escrow = payable(address(this));
     ContractUtility.LendBorrow public lendBorrowEth;
+    bool isLended = false;
+    bool isBorrowed = false;
+    bool isRepaid = false;
+    bool isRetrieved = false;
 
     event Lend(address indexed from, address indexed to, uint256 value);
     event Borrow(address indexed from, address indexed to, uint256 value);
     event Repay(address indexed from, address indexed to, uint256 value);
     event Retrieve(address indexed from, address indexed to, uint256 value);
+    event Terminate(address indexed from);
+    event SetInterestRate(uint256 value);
 
-    constructor(BaseContract _base, address _borrower, address _lender, DeTrustToken _wallet, uint256 _contractDuration, 
-        uint256 _releaseTime, ContractUtility.DisputeType _dispute,  uint256 _amount,
-        ContractUtility.Consensus _consensus){
+    modifier contractReady() {
+        require(base.isContractReady(contractId), "Contract is not ready!");
+        _;
+    }
+
+    constructor(BaseContract _base, address payable _borrower, address payable _lender, uint256 _contractDuration, 
+        uint256 _releaseTime, ContractUtility.DisputeType _dispute,  uint256 _amount, uint256 _interestRate) payable{
     
         lendBorrowEth = ContractUtility.LendBorrow(
-            DeTrustToken(address(0)),
             _borrower,
             _lender,
-            _contractDuration,
+            _contractDuration.mul(1 days),
             _amount,
             _releaseTime,
-            0,
-            false,
-            false,
-            false,
-            false);
+            _interestRate
+            );
 
         base = _base;
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.LEND_BORROW_ETH,
-            _consensus, _dispute,_lender, _borrower);
-
-        _wallet.transfer(address(_base), ContractUtility.getContractCost());
+            _dispute,_lender, _borrower);
     
     }
 
-    function lend() public payable {
-        require(base.isSigned(contractId), "Contract has not been signed!");
-        require(base.isVerified(contractId), "Contract has not been verified!");
-        require(!lendBorrowEth.isLended, "The amount has been released!");
+    // lender lend the amount
+    function lend() public payable contractReady {
         require(msg.sender == lendBorrowEth.lender, "You are not the lender!");
+        require(!isLended, "The amount has been released!");
         require(msg.value == lendBorrowEth.amount, "The amount is not correct!");
 
-        lendBorrowEth.isLended = true;
+        isLended = true;
 
         emit Lend(msg.sender, address(this), msg.value);
     }
 
-    function borrow() public {
-        require(block.timestamp >= lendBorrowEth.releaseTime, "The release time has not reached!");
-        require(lendBorrowEth.isLended, "The amount has not been released!");
+    // borrower borrow the amount after the release time
+    function borrow() public contractReady {
         require(msg.sender == lendBorrowEth.borrower, "You are not the borrower!");
+        require(block.timestamp >= lendBorrowEth.releaseTime, "The release time has not reached!");
+        require(isLended, "The amount has not been released!");
+        require(address(this).balance >= lendBorrowEth.amount, "The contract does not have enough balance!");
 
-        payable(lendBorrowEth.borrower).transfer(lendBorrowEth.amount);
-        lendBorrowEth.isBorrowed = true;
+        lendBorrowEth.borrower.transfer(lendBorrowEth.amount);
+        isBorrowed = true;
+
+        emit Borrow(address(this), msg.sender, lendBorrowEth.amount);
     }
 
-    function repay() public payable {
-        require(lendBorrowEth.isBorrowed, "The amount has not been borrowed!");
-        require(msg.sender == lendBorrowEth.borrower, "You are not the borrower!");
-        
-        uint256 amountToRepay = lendBorrowEth.amount.add(lendBorrowEth.amount.mul(
+    // get the amount should be repaid after added with interest
+    function getRepayAmount() public view contractReady returns (uint256) {
+        return lendBorrowEth.amount.add(lendBorrowEth.amount.mul(
             lendBorrowEth.interestRate).div(100) ** (
             block.timestamp.sub(lendBorrowEth.releaseTime)).div(30 days));
-
-        require(msg.value == amountToRepay, "The amount is not correct!");
-
-        lendBorrowEth.isRepaid = true;
     }
 
-    function retrieve() public {
-        require(lendBorrowEth.isRepaid, "The amount has not been repaid!");
+    // borrower repay the amount
+    function repay() public payable contractReady {
+        require(msg.sender == lendBorrowEth.borrower, "You are not the borrower!");
+        require(isBorrowed, "The amount has not been borrowed!");
+        require(msg.value == getRepayAmount(), "The repay amount is not correct!");
+
+        isRepaid = true;
+
+        emit Repay(msg.sender, address(this), msg.value);
+    }
+
+    // lender retrieve the amount after the borrower repaid
+    function retrieve() public contractReady {
         require(msg.sender == lendBorrowEth.lender, "You are not the lender!");
+        require(isRepaid, "The amount has not been repaid!");
+        require(address(this).balance >= getRepayAmount(), "The contract does not have enough balance!");
 
-        payable(lendBorrowEth.lender).transfer(lendBorrowEth.amount);
-        lendBorrowEth.isRetrieved = true;
+        lendBorrowEth.lender.transfer(getRepayAmount());
+        isRetrieved = true;
+
+        emit Retrieve(address(this), msg.sender, getRepayAmount());
     }
 
-    function terminate() public {
-        require(lendBorrowEth.isRetrieved || 
-            !lendBorrowEth.isBorrowed && block.timestamp > lendBorrowEth.releaseTime.add(
-                lendBorrowEth.contractDuration.mul(1 days)), 
-            "The amount has not been repaid!");
+    // terminate the contract
+    function terminate() public contractReady {
+        require(isRetrieved || 
+            !isBorrowed && block.timestamp > lendBorrowEth.releaseTime.add(lendBorrowEth.contractDuration), 
+            "Termination not available!");
+        require(msg.sender == lendBorrowEth.lender || msg.sender == lendBorrowEth.borrower, 
+            "You are not involved in this contract!");
 
-        if (!lendBorrowEth.isBorrowed) {
-            payable(lendBorrowEth.lender).transfer(lendBorrowEth.amount);
+        if (isLended && !isBorrowed) {
+            lendBorrowEth.lender.transfer(lendBorrowEth.amount);
+            base.voidContract(contractId);
+        } else if (isRetrieved) {
+            base.completeContract(contractId);
+        } else {
+            base.voidContract(contractId);
         }
+
+        emit Terminate(address(this));
 
         selfdestruct(payable(address(this)));
     }
 
-    function setInterestRate(uint256 _newRate) public {
+    // change final interest rate
+    function setInterestRate(uint256 _newRate) public contractReady {
         require(msg.sender == lendBorrowEth.lender, "You are not the lender!");
         lendBorrowEth.interestRate = _newRate;
+
+        emit SetInterestRate(_newRate);
     }
 
 }

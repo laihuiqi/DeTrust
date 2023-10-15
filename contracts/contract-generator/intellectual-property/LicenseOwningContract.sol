@@ -13,8 +13,10 @@ contract LicenseOwningContract {
     bool licenseOfferedToPurchase;
     uint256 licensePrice;
     uint256 licenseRenewalPeriod;
+    uint256 commissionFactor = 20;
 
-    constructor(address _owner, string memory _content, uint256 _licensePrice, uint256 _licenseRenewalPeriod) {
+    constructor(address _owner, string memory _content, uint256 _licensePrice, uint256 _licenseRenewalPeriod) payable {
+        require(msg.value == _licensePrice.mul(commissionFactor), "Payment amount is incorrect!");
         owner = _owner;
         content = _content;
         licensePrice = _licensePrice;

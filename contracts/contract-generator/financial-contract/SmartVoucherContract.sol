@@ -1,18 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "../../DeTrustToken.sol";
 import "../ContractUtility.sol";
 import "../BaseContract.sol";
 
+/**
+ * @title SmartVoucherContract
+ * @dev The base contract for smart voucher contract
+ */
 contract SmartVoucherContract {
 
     BaseContract public base;
     uint256 contractId;
     ContractUtility.SmartVoucher public smartVoucher;
 
+    event ContractTerminated(address _issuer, address _redeemer, uint256 _value);
+    event ContractRedeemed(address _issuer, address _redeemer, uint256 _value);
+
+    modifier contractReady() {
+        require(base.isContractReady(contractId), "Contract is not ready!");
+        _;
+    }
+
     constructor(BaseContract _base, address _issuer, address _redeemer, address _usageAddress, string memory _description, 
-        DeTrustToken _wallet, ContractUtility.VoucherType _voucherType, uint256 _value, uint256 _expiryDate,
-        ContractUtility.Consensus _consensus, ContractUtility.DisputeType _dispute) {
+        ContractUtility.VoucherType _voucherType, uint256 _value, uint256 _expiryDate,
+        ContractUtility.DisputeType _dispute) payable {
         smartVoucher = ContractUtility.SmartVoucher(
             _issuer,
             _redeemer,
@@ -27,27 +38,29 @@ contract SmartVoucherContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SMART_VOUCHER,
-            _consensus, _dispute, _issuer, _redeemer);
-
-        _wallet.transfer(address(_base), ContractUtility.getContractCost());
+            _dispute, _issuer, _redeemer);
     }
 
-    function redeem() public returns (address, ContractUtility.VoucherType, uint256) {
-        // redeem the voucher
-        require(base.isSigned(contractId), "Contract has not been signed!");
-        require(base.isVerified(contractId), "Contract has not been verified!");
-        require(smartVoucher.state == ContractUtility.VoucherState.ACTIVE, "Voucher should be active!");
+    // redeem the voucher
+    function redeem() public contractReady returns (address, ContractUtility.VoucherType, uint256) {
         require(msg.sender == smartVoucher.redeemer, "You are not the redeemer!");
+        require(smartVoucher.state == ContractUtility.VoucherState.ACTIVE, "Voucher should be active!");
         require(block.timestamp <= smartVoucher.expiryDate, "Voucher has expired!");
 
         smartVoucher.state = ContractUtility.VoucherState.REDEEMED;
+
+        emit ContractTerminated(smartVoucher.issuer, smartVoucher.redeemer, smartVoucher.value);
         return (smartVoucher.usageAddress, smartVoucher.voucherType, smartVoucher.value);
     }
 
-    function destroy() public {
-        // destroy the voucher
+    // destroy the voucher
+    function destroy() public contractReady {
         require(smartVoucher.state == ContractUtility.VoucherState.REDEEMED ||
             block.timestamp > smartVoucher.expiryDate, "Voucher is usable!");
+
+        base.completeContract(contractId);
+
+        emit ContractTerminated(smartVoucher.issuer, smartVoucher.redeemer, smartVoucher.value);
 
         selfdestruct(payable(address(this)));
     }
