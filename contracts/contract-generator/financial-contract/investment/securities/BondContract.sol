@@ -47,7 +47,8 @@ contract BondContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _issuer, address payable _owner, string memory _bondName, 
+    constructor(BaseContract _base, address payable _issuer, address payable _owner, 
+        address _walletIssuer, address _walletOwner, string memory _bondName, 
         string memory _bondCode, uint256 _quantity, uint256 _issueDate, uint256 _maturity, 
         uint256 _couponRate, uint256 _couponPaymentInterval, uint256 _faceValue, 
         uint256 _redemptionValue, ContractUtility.DisputeType _dispute) payable {
@@ -72,7 +73,7 @@ contract BondContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.BOND,
-            _dispute, _issuer, _owner);
+            _dispute, _issuer, _owner, _walletIssuer, _walletOwner);
     }
 
     // buy the bond

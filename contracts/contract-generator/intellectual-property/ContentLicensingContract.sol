@@ -29,9 +29,12 @@ contract ContentLicensingContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _owner, address payable _licensee, LicenseOwningContract _license, 
+    constructor(BaseContract _base, address payable _owner, address payable _licensee, 
+        address _walletOwner, address _walletLicensee, LicenseOwningContract _license, 
         uint256 _startDate, ContractUtility.DisputeType _dispute) payable {
-        require(_owner == _license.getOwner(), "Owner of the license is not the same as the owner of the contract!");
+
+        require(_owner == _license.getOwner(), 
+            "Owner of the license is not the same as the owner of the contract!");
         
         contentLicensing = ContractUtility.ContentLicensing(
             _owner,
@@ -45,7 +48,7 @@ contract ContentLicensingContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
-            _dispute, _owner, _licensee);
+            _dispute, _owner, _licensee, _walletOwner, _walletLicensee);
     }
 
     // pay the licensor

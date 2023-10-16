@@ -21,7 +21,8 @@ contract SmartVoucherContract {
         _;
     }
 
-    constructor(BaseContract _base, address _issuer, address _redeemer, address _usageAddress, string memory _description, 
+    constructor(BaseContract _base, address _issuer, address _redeemer, address _usageAddress, 
+        address _walletIssuer, address _walletRedeemer, string memory _description, 
         ContractUtility.VoucherType _voucherType, uint256 _value, uint256 _expiryDate,
         ContractUtility.DisputeType _dispute) payable {
         smartVoucher = ContractUtility.SmartVoucher(
@@ -38,7 +39,7 @@ contract SmartVoucherContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SMART_VOUCHER,
-            _dispute, _issuer, _redeemer);
+            _dispute, _issuer, _redeemer, _walletIssuer, _walletRedeemer);
     }
 
     // redeem the voucher

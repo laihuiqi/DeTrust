@@ -45,8 +45,9 @@ contract PurchaseBaseContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _seller, address payable _buyer, string memory _description, 
-        uint256 _price, uint256 _paymentDate, uint256 _deliveryDate, ContractUtility.DisputeType _dispute) payable {
+    constructor(BaseContract _base, address payable _seller, address payable _buyer, address _walletSeller, 
+        address _walletBuyer,string memory _description, uint256 _price, uint256 _paymentDate, 
+        uint256 _deliveryDate, ContractUtility.DisputeType _dispute) payable {
         
         purchase = ContractUtility.Purchase(
             _seller,
@@ -60,7 +61,7 @@ contract PurchaseBaseContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.PURCHASE,
-            _dispute, _seller, _buyer);
+            _dispute, _seller, _buyer, _walletSeller, _walletBuyer);
     }
 
     // pay the seller

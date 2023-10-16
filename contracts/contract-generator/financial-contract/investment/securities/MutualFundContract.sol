@@ -49,7 +49,8 @@ contract MutualFundContract {
     }
 
     constructor(BaseContract _base, string memory _fundName, string memory _fundDescription, address payable _fundManager, 
-        address payable _fundHolder, uint256 _fundValue, uint256 _fundShare, uint256 _yieldRate, uint256 _interestInterval, 
+        address payable _fundHolder, address _walletFundManager, address _walletFundHolder, 
+        uint256 _fundValue, uint256 _fundShare, uint256 _yieldRate, uint256 _interestInterval, 
         uint256 _commisionRate, uint256 _firstInterestDate, ContractUtility.DisputeType _dispute) payable {
     
         fund = ContractUtility.Fund(
@@ -69,7 +70,7 @@ contract MutualFundContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUND,
-            _dispute, _fundManager, _fundHolder);
+            _dispute, _fundManager, _fundHolder, _walletFundManager, _walletFundHolder);
     }
 
     // buy the fund

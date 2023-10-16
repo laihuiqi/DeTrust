@@ -49,7 +49,8 @@ contract StockContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _issuer, address payable _shareHolder, string memory _stockName, 
+    constructor(BaseContract _base, address payable _issuer, address payable _shareHolder, 
+        address _walletIssuer, address _walletShareHoler, string memory _stockName, 
         string memory _stockCode, uint256 _stockValue, uint256 _shares, uint256 _dividenRate, 
         uint256 _dividenPaymentInterval, uint256 _firstDividenDate, ContractUtility.DisputeType _dispute) payable {
         
@@ -69,7 +70,7 @@ contract StockContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.STOCK,
-            _dispute, _issuer, _shareHolder);
+            _dispute, _issuer, _shareHolder, _walletIssuer, _walletShareHoler);
     }
 
     // buy the stock

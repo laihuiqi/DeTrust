@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../DeTrustToken.sol";
+import "../TrustScore.sol";
 import "./ContractUtility.sol";
 import "../DisputeMechanism.sol";
 import "./CommonContract.sol";
@@ -35,27 +36,22 @@ contract BaseContract {
         uint256 fraudAmount;
     }
 
-    DeTrustToken wallet; // add wallet instance for reward mechanism in contract verification
-    // Account account; // add account instance for getting tier information
-    // TrustScore trustScore; // add trust score instance for updating trust score
+    TrustScore trustScore; // add trust score instance for updating trust score
 
     uint256 counter = 0;
     uint256 minimumTimeFrame = 1 days;
     uint256 verificationCutOffTime = 2 days;
 
-    /*
-    constructor(DeTrustToken _wallet, Account _account, TrustScore _trustScore) {
-        wallet = _wallet;
-        account = _account;
+    constructor(TrustScore _trustScore) {
         trustScore = _trustScore;
     }
-    */
 
     mapping(address => uint256) public addressToIdRepo;
     mapping(uint256 => address) public idToAddressRepo;
     mapping(uint256 => BasicProperties) public generalRepo;
     mapping(uint256 => address[]) contractVerifyList;
     mapping(uint256 => address[]) contractFraudList;
+    mapping(address => address) walletMapping;
     mapping(uint256 => string[]) messageLog;
 
     event ContractLogged(address indexed _contract, uint256 indexed _contractId);
@@ -75,8 +71,8 @@ contract BaseContract {
 
     // modifier to check if correct price is paid on contract creation
     modifier correctInitPrice(address _payee) {
-        ContractUtility.Tier tier = ContractUtility.Tier.A;
-        // ContractUtility.Tier tier = Account.getTier(_payee);
+        TrustScore.TrustTier tier = trustScore.getTrustTier(_payee);
+
         require(msg.value == ContractUtility.getContractCost(tier) / 2, 
             "Incorrect price paid!");
         _;
@@ -84,8 +80,8 @@ contract BaseContract {
 
     // modifier to check if correct price is paid on contract payment
     modifier correctContractPayment(uint256 _contractId) {
-        ContractUtility.Tier tier = ContractUtility.Tier.A;
-        // ContractUtility.Tier tier = Account.getTier(_involver);
+        TrustScore.TrustTier tier = trustScore.getTrustTier(msg.sender);
+
         if (generalRepo[_contractId].payee == msg.sender) {
             require(msg.value == ContractUtility.getContractCost(tier) / 2, 
             "Incorrect price paid!");
@@ -100,14 +96,17 @@ contract BaseContract {
 
     // add contract to repo
     function addToContractRepo(address _contractAddress, ContractUtility.ContractType _contractType, 
-        ContractUtility.DisputeType _dispute, address _payee, address _payer) 
-        public payable correctInitPrice(_payee) returns (uint256) {
+        ContractUtility.DisputeType _dispute, address _payee, address _payer, address _walletPayee, 
+        address _walletPayer) public payable correctInitPrice(_payee) returns (uint256) {
 
         counter.add(1);
 
         // map cotract address to contract id
         addressToIdRepo[_contractAddress] = counter;
         idToAddressRepo[counter] = _contractAddress;
+
+        walletMapping[_payee] = _walletPayee;
+        walletMapping[_payer] = _walletPayer;
 
         // create a relative instance of basic properties for the contract and store it in repo
         generalRepo[counter] = BasicProperties(
@@ -142,8 +141,14 @@ contract BaseContract {
     // complete a contract
     function completeContract(uint256 _contractId) public onlyInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.COMPLETED;
-        // trustScore.increaseTrustScore(generalRepo[_contractId].payer, ContractUtility.getContractCompletionReward(Account.getTier(payer)));
-        // trustScore.increaseTrustScore(generalRepo[_contractId].payee, ContractUtility.getContractCompletionReward(Account.getTier(payee)));
+
+        trustScore.increaseTrustScore(generalRepo[_contractId].payer, 
+            ContractUtility.getContractCompletionReward(
+                trustScore.getTrustTier(generalRepo[_contractId].payer)));
+
+        trustScore.increaseTrustScore(generalRepo[_contractId].payee, 
+            ContractUtility.getContractCompletionReward(
+                trustScore.getTrustTier(generalRepo[_contractId].payee)));
     }
 
     // void a contract
@@ -281,7 +286,7 @@ contract BaseContract {
     }
 
     // get the number of verifiers needed for the contract
-    function getVerifierTotal(ContractUtility.Tier _payerTier, ContractUtility.Tier _payeeTier) 
+    function getVerifierTotal(TrustScore.TrustTier _payerTier, TrustScore.TrustTier _payeeTier) 
         internal pure returns (uint8) {
         return ContractUtility.getVerifierAmount(_payerTier) + 
             (ContractUtility.getVerifierAmount(_payeeTier));
@@ -289,9 +294,11 @@ contract BaseContract {
 
     // verify the contract
     // contract can be verified by any address except involvers
-    function verifyContract(uint256 _contractId, ContractUtility.VerificationState _vstate) public 
-        isSigned(_contractId) verifyAllowed(_contractId, _vstate) notInvolved(_contractId) 
-        returns (ContractUtility.VerificationState) {
+    function verifyContract(uint256 _contractId, ContractUtility.VerificationState _vstate, 
+        address _wallet) public isSigned(_contractId) verifyAllowed(_contractId, _vstate) 
+        notInvolved(_contractId) returns (ContractUtility.VerificationState) {
+
+        walletMapping[msg.sender] == _wallet;
         
         if(_vstate == ContractUtility.VerificationState.LEGITIMATE) {
             contractVerifyList[_contractId].push(msg.sender);
@@ -337,30 +344,30 @@ contract BaseContract {
         if (generalRepo[_contractId].isVerified == ContractUtility.VerificationState.LEGITIMATE) {
             proceedContract(_contractId);
             for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
-                // wallet.transfer(contractVerifyList[_contractId][i], 10);
+                DeTrustToken(walletMapping[contractVerifyList[_contractId][i]]).mint(10);
             }
 
             for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
-                // wallet.deduct(contractFraudList[_contractId][i], 5);
-                // trustScore.decreaseTrustScore(contractFraudList[_contractId][i], 1);
+                DeTrustToken(walletMapping[contractFraudList[_contractId][i]]).burn(5);
+                trustScore.decreaseTrustScore(contractFraudList[_contractId][i], 1);
             }
             
         } else {
             voidContract(_contractId);
-            /*
-            wallet.deduct(generalRepo[_contractId].payer, 500);
-            wallet.deduct(generalRepo[_contractId].payee, 500);
+            
+            DeTrustToken(walletMapping[generalRepo[_contractId].payer]).burn(500);
+            DeTrustToken(walletMapping[generalRepo[_contractId].payee]).burn(500);
             trustScore.decreaseTrustScore(generalRepo[_contractId].payer, 2);
             trustScore.decreaseTrustScore(generalRepo[_contractId].payee, 2);
-            */
+            
 
             for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
-                // wallet.transfer(contractFraudList[_contractId][i], 10);
+                DeTrustToken(walletMapping[contractFraudList[_contractId][i]]).mint(10);
             }
 
             for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
-                // wallet.deduct(contractVerifyList[_contractId][i], 5);
-                // trustScore.decreaseTrustScore(contractVerifyList[_contractId][i], 1);
+                DeTrustToken(walletMapping[contractVerifyList[_contractId][i]]).burn(5);
+                trustScore.decreaseTrustScore(contractVerifyList[_contractId][i], 1);
             }
         }
 

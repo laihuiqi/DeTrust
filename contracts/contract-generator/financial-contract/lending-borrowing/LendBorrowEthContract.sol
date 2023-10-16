@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "../../ContractUtility.sol";
 import "../../BaseContract.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract LendBorrowEthContract {
     using SafeMath for uint256;
@@ -30,7 +29,8 @@ contract LendBorrowEthContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _borrower, address payable _lender, uint256 _contractDuration, 
+    constructor(BaseContract _base, address payable _borrower, address payable _lender, 
+        address _walletBorrower, address _walletLender, uint256 _contractDuration, 
         uint256 _releaseTime, ContractUtility.DisputeType _dispute,  uint256 _amount, uint256 _interestRate) payable{
     
         lendBorrowEth = ContractUtility.LendBorrow(
@@ -44,7 +44,7 @@ contract LendBorrowEthContract {
 
         base = _base;
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.LEND_BORROW_ETH,
-            _dispute,_lender, _borrower);
+            _dispute,_lender, _borrower, _walletLender, _walletBorrower);
     
     }
 

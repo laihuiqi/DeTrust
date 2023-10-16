@@ -24,7 +24,8 @@ contract SimplePaymentContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _payer, address payable _payee, uint256 _amount, 
+    constructor(BaseContract _base, address payable _payer, address payable _payee, 
+        address _walletPayer, address _walletPayee, uint256 _amount, 
         string memory _description, ContractUtility.DisputeType _dispute) payable {
         simplePayment = ContractUtility.SimplePayment(
             _payer,
@@ -37,7 +38,7 @@ contract SimplePaymentContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SIMPLE_PAYMENT,
-            _dispute, _payer, _payee);
+            _dispute, _payee, _payer, _walletPayee, _walletPayer);
     }
 
     // pay the payee

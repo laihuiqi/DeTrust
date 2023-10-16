@@ -47,7 +47,8 @@ contract LeaseContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _landlord, address payable _tenant, string memory _description, 
+    constructor(BaseContract _base, address payable _landlord, address payable _tenant, 
+        address _walletLandlord, address _walletTenant, string memory _description, 
         uint256 _startDate, uint256 _endDate, uint256 _rent, uint256 _deposit, uint256 _occupancyLimit, 
         uint256 _stampDuty, ContractUtility.DisputeType _dispute) payable {
         
@@ -68,7 +69,7 @@ contract LeaseContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.LEASE,
-            _dispute, _landlord, _tenant);
+            _dispute, _landlord, _tenant, _walletLandlord, _walletTenant);
     }
 
     // get the payment amount for the first payment

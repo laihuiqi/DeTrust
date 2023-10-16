@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../DisputeMechanism.sol";
+import "../TrustScore.sol";
 import "./intellectual-property/LicenseOwningContract.sol";
 
 /**
@@ -44,8 +43,6 @@ library ContractUtility {
         ESCROW,
         JURY
     }
-
-    enum Tier { A, B, C, D }
 
     enum VerificationState { PENDING, LEGITIMATE, FRAUDULENT }
 
@@ -219,44 +216,44 @@ library ContractUtility {
     }
 
     // get contract cost based on user tier
-    function getContractCost(Tier tier) public pure returns (uint8) {
+    function getContractCost(TrustScore.TrustTier tier) public pure returns (uint8) {
         // depends on user tier
-        if (tier == Tier.A) {
+        if (tier == TrustScore.TrustTier.HIGHLYTRUSTED) {
             return 20;
-        } else if (tier == Tier.B) {
+        } else if (tier == TrustScore.TrustTier.TRUSTED) {
             return 40;
-        } else if (tier == Tier.C) {
+        } else if (tier == TrustScore.TrustTier.NEUTRAL) {
             return 80;
-        } else if (tier == Tier.D) {
+        } else if (tier == TrustScore.TrustTier.UNTRUSTED) {
             return 100;
         }
         return 126;
     }
 
     // get verifier amount based on user tier
-    function getVerifierAmount(Tier tier) public pure returns (uint8) {
+    function getVerifierAmount(TrustScore.TrustTier tier) public pure returns (uint8) {
         // depends on user tier
-        if (tier == Tier.A) {
+        if (tier == TrustScore.TrustTier.HIGHLYTRUSTED) {
             return 4;
-        } else if (tier == Tier.B) {
+        } else if (tier == TrustScore.TrustTier.TRUSTED) {
             return 8;
-        } else if (tier == Tier.C) {
+        } else if (tier == TrustScore.TrustTier.NEUTRAL) {
             return 10;
-        } else if (tier == Tier.D) {
+        } else if (tier == TrustScore.TrustTier.UNTRUSTED) {
             return 20;
         }
         return 120;
     }
 
     // get contract completion reward based on user tier
-    function getContractCompletionReward(Tier tier) public pure returns (uint8) {
-        if (tier == Tier.A) {
+    function getContractCompletionReward(TrustScore.TrustTier tier) public pure returns (uint8) {
+        if (tier == TrustScore.TrustTier.HIGHLYTRUSTED) {
             return 1;
-        } else if (tier == Tier.B) {
+        } else if (tier == TrustScore.TrustTier.TRUSTED) {
             return 5;
-        } else if (tier == Tier.C) {
+        } else if (tier == TrustScore.TrustTier.NEUTRAL) {
             return 10;
-        } else if (tier == Tier.D) {
+        } else if (tier == TrustScore.TrustTier.UNTRUSTED) {
             return 15;
         }
         return 0;

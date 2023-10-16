@@ -35,9 +35,9 @@ contract CommonContract {
     }
 
     constructor(BaseContract _base, address payable[] memory _payers, address payable[] memory _payees,
-        string memory _title, string memory _contractType, string[] memory _obligationTitles, 
-        string[] memory _obligationDescriptions, uint256[] memory _paymentAmounts, uint256 _totalObligations, 
-        ContractUtility.DisputeType _dispute) payable {
+        address _walletInitiator, address _walletRespondent, string memory _title, string memory _contractType, 
+        string[] memory _obligationTitles, string[] memory _obligationDescriptions, 
+        uint256[] memory _paymentAmounts, uint256 _totalObligations, ContractUtility.DisputeType _dispute) payable {
 
         // check if all obligation arrays have the same length
         require(_totalObligations == _obligationTitles.length, 
@@ -67,7 +67,7 @@ contract CommonContract {
 
         // store contract in repo
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.COMMON,
-            _dispute, initiator, respondent);
+            _dispute, initiator, respondent, _walletInitiator, _walletRespondent);
 
         emit ContractCreated(address(this), contractId);
     }

@@ -31,7 +31,7 @@ contract ServiceBaseContract {
     }
 
     constructor(BaseContract _base, ContractUtility.ServiceType _serviceType, address payable _serviceProvider, address payable _client,
-        uint256 _contractDuration, string memory _description, uint256 _paymentTerm, uint256 _singlePayment,
+        address _walletPayee, address _walletPayer, uint256 _contractDuration, string memory _description, uint256 _paymentTerm, uint256 _singlePayment,
         uint256 _firstPaymentDate, ContractUtility.DisputeType _dispute) payable {
         
         service = ContractUtility.Service(
@@ -49,7 +49,7 @@ contract ServiceBaseContract {
         creationDate = block.timestamp;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SERVICE,
-            _dispute, _client, _serviceProvider);
+            _dispute, _client, _serviceProvider, _walletPayee, _walletPayer);
     }
 
     // pay the service provider

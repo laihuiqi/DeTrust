@@ -48,8 +48,9 @@ contract FutureContract {
     }
 
     constructor(BaseContract _base, address payable _seller, address payable _buyer, 
-        string memory _assetType, uint256 _assetCode, uint256 _quantity, uint256 _deliveryDays, 
-        uint256 _futurePrice, string memory _description, ContractUtility.DisputeType _dispute) payable {
+        address _walletSeller, address _walletBuyer, string memory _assetType, uint256 _assetCode, 
+        uint256 _quantity, uint256 _deliveryDays, uint256 _futurePrice, string memory _description, 
+        ContractUtility.DisputeType _dispute) payable {
 
         future = ContractUtility.Future(
             _seller,
@@ -66,7 +67,7 @@ contract FutureContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
-            _dispute, _seller, _buyer);
+            _dispute, _seller, _buyer, _walletSeller, _walletBuyer);
 
     }
 

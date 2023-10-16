@@ -43,7 +43,8 @@ contract OptionContract {
         _;
     }
 
-    constructor(BaseContract _base, address payable _seller, address payable _buyer, ContractUtility.OptionType _optionType,  
+    constructor(BaseContract _base, address payable _seller, address payable _buyer, 
+        address _walletSeller, address _walletBuyer, ContractUtility.OptionType _optionType,  
         uint256 _assetCode, string memory _assetType, uint256 _quantity, uint256 _deliveryDate, uint256 _strikePrice, uint256 _optionPremium,
         ContractUtility.DisputeType _dispute) payable {
         
@@ -62,7 +63,7 @@ contract OptionContract {
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.OPTION,
-            _dispute, _seller, _buyer);
+            _dispute, _seller, _buyer, _walletSeller, _walletBuyer);
     }
 
     // buyer of the option init the contract by paying the premium to the contract
