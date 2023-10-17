@@ -82,7 +82,7 @@ contract Dispute {
             5
         );
 
-        loseGainAmounts = LossGain(20, 20, 5);
+        loseGainAmounts = LossGain(20, 20, 2);
     }
 
     function submitOutcome(string memory outcome) public {
