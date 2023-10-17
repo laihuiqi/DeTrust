@@ -35,11 +35,11 @@ contract DeTrustToken is ERC20 {
     }
 
     // Functions
-    function mint(uint256 amount) public onlyOwner exceedMax(amount) {
+    function mint(uint256 amount) public exceedMax(amount) {
         _mint(thisAddress(), amount);
     }
 
-    function burn(uint256 amount) public onlyOwner enoughSupply(amount) {
+    function burn(uint256 amount) public enoughSupply(amount) {
         _burn(thisAddress(), amount);
     }
 
