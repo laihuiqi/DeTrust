@@ -32,9 +32,7 @@ Provides contracts regarding following financial services:
    - Mutual fund
      -- Investing in funds that hold a diversified portfolio of stocks or bonds.
    - Stock
-2. Lending borrowing
-   - DTR
-   - ETH
+2. Lending borrowing ETH
 3. Simple payment
    -- Allow making simple payments.
 4. Smart Voucher

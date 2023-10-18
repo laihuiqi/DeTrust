@@ -5,20 +5,56 @@ import "../../../../DeTrustToken.sol";
 import "../../../ContractUtility.sol";
 import "../../../BaseContract.sol";
 
+/**
+ * @title StockContract
+ * @dev The base contract for stock contract
+ */
 contract StockContract {
     using SafeMath for uint256;
 
     BaseContract public base;
     uint256 contractId;
     ContractUtility.Stock public stock;
+    uint256 dividenValue = 0;
+    bool isFundCollected = false;
+    bool isFundReturned = false;
 
-    constructor(BaseContract _base, address _issuer, address _shareHolder, DeTrustToken _wallet, 
-        string memory _stockName, string memory _stockCode, uint256 _stockValue, 
-        uint256 _shares, uint256 _dividenRate, uint256 _dividenPaymentInterval, 
-        uint256 _firstDividenDate, ContractUtility.Consensus _consensus, ContractUtility.DisputeType _dispute) {
+    event BuyStock(uint256 _value);
+    event TransferStock(address _transferee);
+    event CollectFund();
+    event PayDividen(uint256 _value);
+    event RedeemDividen();
+    event ReturnFund();
+    event UpdateDividenRate(uint256 _value);
+    event UpdateStockValue(uint256 _value);
+    event EndStockContract(uint256 _value);
+
+    modifier contractReady() {
+        require(base.isContractReady(contractId), "Contract is not ready!");
+        _;
+    }
+
+    modifier issuerOnly() {
+        require(msg.sender == stock.issuer, "Only issuer can call this function!");
+        _;
+    }
+
+    modifier shareholderOnly() {
+        require(msg.sender == stock.shareholder, "Only shareholder can call this function!");
+        _;
+    }
+
+    modifier isActive() {
+        require(stock.state == ContractUtility.SecuritiesState.ACTIVE, "Stock should be active!");
+        _;
+    }
+
+    constructor(BaseContract _base, address payable _issuer, address payable _shareHolder, 
+        address _walletIssuer, address _walletShareHoler, string memory _stockName, 
+        string memory _stockCode, uint256 _stockValue, uint256 _shares, uint256 _dividenRate, 
+        uint256 _dividenPaymentInterval, uint256 _firstDividenDate, ContractUtility.DisputeType _dispute) payable {
         
         stock = ContractUtility.Stock(
-            _wallet,
             _issuer,
             _shareHolder,
             _stockName,
@@ -28,80 +64,105 @@ contract StockContract {
             _shares,
             _dividenRate,
             _dividenPaymentInterval,
-            _firstDividenDate,
-            0
+            _firstDividenDate
         );
 
         base = _base;
 
         contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.STOCK,
-            _consensus, _dispute, _issuer, _shareHolder);
-
-        _wallet.transfer(address(_base), ContractUtility.getContractCost());
+            _dispute, _issuer, _shareHolder, _walletIssuer, _walletShareHoler);
     }
 
-    function buy() public {
-        // buy the stock
-        require(base.isSigned(contractId), "Contract has not been signed!");
-        require(base.isVerified(contractId), "Contract has not been verified!");
+    // buy the stock
+    function buy() external payable contractReady shareholderOnly {
         require(stock.state == ContractUtility.SecuritiesState.ISSUED, "Stock should be issuing!");
-        require(msg.sender == stock.shareholder, "You are not the shareholder!");
+        require(msg.value == stock.stockValue.mul(stock.shares), "The amount is not correct!");
 
-        stock.deTrustToken.transfer(stock.issuer, stock.stockValue.mul(stock.shares));
         stock.state = ContractUtility.SecuritiesState.ACTIVE;
+
+        emit BuyStock(msg.value);
     }
 
-    function transfer(address _transferee) public {
-        // transfer the stock
+    // transfer the stock
+    function transfer(address payable _transferee) public contractReady {
         require(msg.sender == stock.shareholder, "You are not the shareholder!");
         
         stock.shareholder = _transferee;
+
+        emit TransferStock(_transferee);
     }
 
-    function payDividen() public {
-        // pay dividen to shareholders
-        require(stock.state == ContractUtility.SecuritiesState.ACTIVE, "Stock should be active!");
-        require(msg.sender == stock.issuer, "Only issuer can pay dividen!");
+    // collect fund from shareholders
+    function collectFund() public contractReady issuerOnly isActive {
+        require(!isFundCollected, "Fund has been collected!");
+
+        stock.issuer.transfer(stock.stockValue.mul(stock.shares));
+        isFundCollected = true;
+
+        emit CollectFund();
+    }
+
+    // pay dividen to shareholders
+    function payDividen() external payable contractReady issuerOnly isActive {
         require(block.timestamp >= stock.dividenPaymentDate, "dividen payment date has not reached!");
+        require(msg.value == stock.stockValue.mul(stock.shares).mul(stock.dividenRate).div(100), 
+            "The amount is not correct!");
 
-        stock.dividenCount = stock.dividenCount.add(1);
-        stock.deTrustToken.approve(stock.shareholder, 
-            stock.stockValue.mul(stock.shares).mul(stock.dividenRate).div(100));
+        dividenValue = dividenValue.add(msg.value);
         stock.dividenPaymentDate = stock.dividenPaymentDate.add(stock.dividenPaymentInterval);
+
+        emit PayDividen(msg.value);
     }
 
-    function redeemDividen() public {
-        // redeem dividen
-        require(stock.state == ContractUtility.SecuritiesState.ACTIVE, "Stock should be active!");
-        require(msg.sender == stock.shareholder, "You are not the shareholder!");
-        require(stock.dividenCount > 0, "No dividen to redeem!");
+    // shareholder redeems dividen
+    function redeemDividen() public contractReady shareholderOnly isActive {
+        require(dividenValue > 0, "No dividen to redeem!");
+        require(address(this).balance >= dividenValue.add(stock.stockValue.mul(stock.shares)), 
+            "The contract does not have enough balance!");
 
-        stock.dividenCount = 0;
-        stock.deTrustToken.transferFrom(stock.issuer, stock.shareholder,
-            stock.stockValue.mul(stock.shares).mul(stock.dividenCount).mul(stock.dividenRate).div(100));
+        stock.shareholder.transfer(dividenValue);
+        dividenValue = 0;
+
+        emit RedeemDividen();
     }
 
-    function updateDividenRate(uint256 _newDividenRate) public {
-        // update the dividen rate
-        require(msg.sender == stock.issuer, "Only issuer can update dividen rate!");
+    // return fund to shareholder
+    function returnFund() external payable contractReady issuerOnly isActive {
+        require(msg.value == stock.stockValue.mul(stock.shares), "The amount is not correct!");
+        require(!isFundReturned, "Fund has been returned!");
+
+        isFundReturned = true;
+
+        emit ReturnFund();
+    }
+
+    // update the dividen rate
+    function updateDividenRate(uint256 _newDividenRate) public contractReady issuerOnly {
         
         stock.dividenRate = _newDividenRate;
+
+        emit UpdateDividenRate(_newDividenRate);
     }
 
-    function updateStockValue(uint256 _newStockValue) public {
-        // update the stock value
-        require(msg.sender == stock.issuer, "Only issuer can update stock value!");
+    // update the stock value
+    function updateStockValue(uint256 _newStockValue) public contractReady issuerOnly {
         
         stock.stockValue = _newStockValue;
+
+        emit UpdateStockValue(_newStockValue);
     }
 
-    function terminateStockContract() public {
-        // terminate the stock contract
-        require(msg.sender == stock.issuer, "Only issuer can terminate stock contract!");
-        require(stock.state == ContractUtility.SecuritiesState.ACTIVE, "Stock should be active!");
+    // terminate the stock contract
+    function endStockContract() public contractReady isActive {
+        require(msg.sender == stock.issuer || msg.sender == stock.shareholder, "You are not involved in this contract!");
+        require(dividenValue == 0, "Dividen should be redeemed first!");
+        require(isFundReturned, "Please wait for the return of fund first!");
+        require(address(this).balance >= stock.stockValue.mul(stock.shares), "Insufficient fund value!");
 
-        stock.deTrustToken.transfer(msg.sender, stock.stockValue.mul(stock.shares));
+        stock.shareholder.transfer(stock.stockValue.mul(stock.shares));
         stock.state = ContractUtility.SecuritiesState.REDEEMED;
+        base.completeContract(contractId);
+        emit EndStockContract(stock.stockValue.mul(stock.shares));
         selfdestruct(payable(address(this)));
     }
 }

@@ -2,10 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
-import "../../../../DeTrustToken.sol";
 import "../../../ContractUtility.sol";
 import "../../../BaseContract.sol";
 
@@ -15,41 +11,34 @@ contract FutureContract {
     BaseContract public base;
     uint256 contractId;
     ContractUtility.Future public future;
-    bool otherInit = false;
+    uint256 currentAmount = 0;
+    bool isPaid = false;
+    bool isReceived = false;
 
-    event BuyerInit();
-    event SellerInit();
-    event SettleFuture();
+    event ContractInit();
+    event IncreaseBalance(uint256 value);
+    event Settle();
+    event VerifyReceive();
     event RevertFuture();
 
-    constructor(BaseContract _base, address _seller, address _buyer, DeTrustToken _wallet, address _derivativeAddress, 
-        ContractUtility.ObjectType _assetType, uint256 _assetCode, uint256 _quantity, uint256 _deliveryDays, 
-        uint256 _futurePrice, uint256 _deposit, string memory _description,
-        ContractUtility.Consensus _consensus, ContractUtility.DisputeType _dispute) {
+    modifier contractReady() {
+        require(base.isContractReady(contractId), "Contract is not ready!");
+        _;
+    }
 
-        future = ContractUtility.Future(
-            _wallet, 
-            _seller, 
-            _buyer, 
-            ContractUtility.DerivativeState.PENDING,
-            _assetType, 
-            _assetType == ContractUtility.ObjectType.TOKEN ? IERC20(_derivativeAddress) : IERC20(address(0)),
-            _assetType == ContractUtility.ObjectType.NFT ? IERC721(_derivativeAddress) : IERC721(address(0)),
-            _assetCode,
-            _quantity, 
-            block.timestamp.add(_deliveryDays.mul(1 days)), 
-            _futurePrice, 
-            _futurePrice.mul(3).div(2), 
-            _deposit, 
-            false,
-            _description);
+    modifier sellerOnly() {
+        require(msg.sender == future.seller, "You are not the seller!");
+        _;
+    }
 
-        base = _base;
+    modifier buyerOnly() {
+        require(msg.sender == future.buyer, "You are not the buyer!");
+        _;
+    }
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
-            _consensus, _dispute, _seller, _buyer);
-
-        _wallet.transfer(address(_base), ContractUtility.getContractCost());
+    modifier isActive() {
+        require(future.state == ContractUtility.DerivativeState.ACTIVE, "Future contract is not active!");
+        _;
     }
 
     modifier deliveryDatePassed() {
@@ -58,85 +47,81 @@ contract FutureContract {
         _;
     }
 
-    function buyerInit() public {
-        // buyer verify the future contract
-        require(base.isSigned(contractId), "Contract has not been signed!");
-        require(base.isVerified(contractId), "Contract has not been verified!");
+    constructor(BaseContract _base, address payable _seller, address payable _buyer, 
+        address _walletSeller, address _walletBuyer, string memory _assetType, uint256 _assetCode, 
+        uint256 _quantity, uint256 _deliveryDays, uint256 _futurePrice, string memory _description, 
+        ContractUtility.DisputeType _dispute) payable {
+
+        future = ContractUtility.Future(
+            _seller,
+            _buyer, 
+            ContractUtility.DerivativeState.PENDING,
+            _assetType, 
+            _assetCode,
+            _quantity, 
+            block.timestamp.add(_deliveryDays.mul(1 days)), 
+            _futurePrice, 
+            _futurePrice.div(2), 
+            _description);
+
+        base = _base;
+
+        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
+            _dispute, _seller, _buyer, _walletSeller, _walletBuyer);
+
+    }
+
+    // buyer verify the future contract
+    function buyerInit() external payable contractReady buyerOnly {
         require(future.state == ContractUtility.DerivativeState.PENDING, "Future contract has been verified!");
-        require(msg.sender == future.buyer, "You are not the buyer!");
-        future.deTrustToken.transfer(future.seller, future.premium);
-        if (otherInit) {
-            future.state = ContractUtility.DerivativeState.ACTIVE;
-        } else {
-            otherInit = true;
-        }
-        emit BuyerInit();
+        require(msg.value >= future.margin.mul(future.quantity), "Future premium is not correct!");
+
+        future.state = ContractUtility.DerivativeState.ACTIVE;
+        currentAmount = currentAmount.add(msg.value);
+        
+        emit ContractInit();
+    }
+    
+    // add balance to contract
+    function increaseBalance() external payable contractReady buyerOnly isActive {
+        require(currentAmount.add(msg.value) <= future.futurePrice.mul(future.quantity), "Payment exceeds limit");
+
+        currentAmount = currentAmount.add(msg.value);
+
+        emit IncreaseBalance(msg.value);
     }
 
-    function sellerInit() public {
-        // seller verify the future contract
-        require(base.isSigned(contractId), "Contract has not been signed!");
-        require(base.isVerified(contractId), "Contract has not been verified!");
-        require(future.state == ContractUtility.DerivativeState.PENDING, "Future contract has been verified!");
-        require(msg.sender == future.seller, "You are not the seller!");
+    // pay the seller
+    function settle() public contractReady buyerOnly isActive deliveryDatePassed {
+        require(currentAmount == future.futurePrice.mul(future.quantity), "Payment is not correct!");
 
-        if (future.assetType == ContractUtility.ObjectType.NFT) {
-            future.asset_nft.transferFrom(future.seller, address(this), future.assetCode);
-        } else {
-            future.asset_token.transferFrom(future.seller, address(this), future.quantity);
-        }
-        if (otherInit) {
-            future.state = ContractUtility.DerivativeState.ACTIVE;
-        } else {
-            otherInit = true;
-        }
-        emit SellerInit();
+        future.seller.transfer(future.futurePrice.mul(future.quantity));
+        isPaid = true;
+        currentAmount = 0;
+
+        emit Settle();
     }
 
-    function checkMarginPrice() public returns (bool) {
-        // check margin maintainance that a traders must maintain to enter / hold a future position
-        require(future.state == ContractUtility.DerivativeState.ACTIVE, "Future contract has not been verified!");
-        require(block.timestamp < future.deliveryDate, "Delivery date has reached!");
+    // buyer verify receiving the asset
+    function verifyReceive() public contractReady buyerOnly isActive deliveryDatePassed {
+        require(isPaid, "Payment has not been made!");
 
-        if (future.deTrustToken.balanceOf(future.buyer) < future.margin) {
-            if (future.isHold) {
-                _revertFuture();
-            } else {
-                future.isHold = true;
-            }
-            return false;
-        }
-        return true;
-    }
-
-    function settle() public deliveryDatePassed {
-        // deliver the underlying asset to the buyer
-        // transfer token with futures
-        require(future.state == ContractUtility.DerivativeState.ACTIVE, "Future contract has not been verified!");
-        require(msg.sender == future.buyer, "You are not the buyer!");
-
-        future.deTrustToken.transfer(future.seller, future.futurePrice.sub(future.premium));
-
-        if (future.assetType == ContractUtility.ObjectType.NFT) {
-            future.asset_nft.transferFrom(address(this), future.buyer, future.assetCode);
-        } else {
-            future.asset_token.transferFrom(address(this), future.buyer, future.quantity);
-        }
-
-        emit SettleFuture();
-    }
-
-    function _revertFuture() internal {
-        // revert the future contract
-        if (future.assetType == ContractUtility.ObjectType.NFT) {
-            future.asset_nft.transferFrom(address(this), future.seller, future.assetCode);
-        } else {
-            future.asset_token.transferFrom(address(this), future.seller, future.quantity);
-        }
-
+        isReceived = true;
+        base.completeContract(contractId);
+        emit VerifyReceive();
         selfdestruct(payable(address(this)));
+    }
 
+    // revert the future contract
+    function revertFuture() internal isActive {
+        require(msg.sender == future.seller || msg.sender == future.buyer, "You are not involved in this contract!");
+        require(address(this).balance >= currentAmount, "Balance is not enough to revert!");
+        require(block.timestamp < future.deliveryDate, "Delivery date has passed!");
+
+        future.buyer.transfer(currentAmount);
+        base.voidContract(contractId);
         emit RevertFuture();
+        selfdestruct(payable(address(this)));
     }
 
 }
