@@ -5,6 +5,7 @@ import "../TrustScore.sol";
 
 contract Dispute {
     // Basic variables
+    address contractAddress;
     address initiator;
     address respondent;
     string title;
@@ -58,11 +59,13 @@ contract Dispute {
     }
 
     constructor(
+        address contractAddress_,
         TrustScore trustScoreAddress,
         address respondent_,
         string memory title_,
         string memory description_
     ) {
+        contractAddress = contractAddress_;
         trustScoreContract = trustScoreAddress;
         initiator = msg.sender;
         respondent = respondent_;
