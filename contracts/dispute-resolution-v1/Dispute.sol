@@ -5,6 +5,7 @@ import "../TrustScore.sol";
 
 contract Dispute {
     // Basic variables
+    address contractAddress;
     address initiator;
     address respondent;
     string title;
@@ -18,13 +19,13 @@ contract Dispute {
 
     // TrustScore related variables
     TrustScore trustScoreContract;
-    uint256 trustScoreRequired;
+    uint256 trustScoreRequired = 500;
     mapping(TrustScore.TrustTier => TrustScore.Range) trustScoreAmounts;
     VoteSum initiatorVoteSum;
     Vote[] initiatorVotes;
     VoteSum respondentVoteSum;
     Vote[] respondentVotes;
-    LossGain loseGainAmounts;
+    LossGain loseGainAmounts = LossGain(20, 20, 2);
 
     enum Status {
         INITIATED,
@@ -58,11 +59,13 @@ contract Dispute {
     }
 
     constructor(
+        address contractAddress_,
         TrustScore trustScoreAddress,
         address respondent_,
         string memory title_,
         string memory description_
     ) {
+        contractAddress = contractAddress_;
         trustScoreContract = trustScoreAddress;
         initiator = msg.sender;
         respondent = respondent_;
@@ -81,13 +84,17 @@ contract Dispute {
             5,
             5
         );
-
-        loseGainAmounts = LossGain(20, 20, 2);
     }
 
     function submitOutcome(string memory outcome) public {
-        require(disputeStatus == Status.INITIATED);
-        require(msg.sender == initiator || msg.sender == respondent);
+        require(
+            disputeStatus == Status.INITIATED,
+            "Dispute must be initiated to submit outcomes"
+        );
+        require(
+            msg.sender == initiator || msg.sender == respondent,
+            "Only initiator and respondent may submit outcomes"
+        );
 
         Outcome memory userOutcome = Outcome(true, msg.sender, outcome);
 
@@ -103,17 +110,24 @@ contract Dispute {
     // - UNTRUSTED users cannot vote
     // - trust score staked must be within the range
     function vote(bool choice, uint256 score) public {
-        require(disputeStatus == Status.VOTING);
+        require(
+            disputeStatus == Status.VOTING,
+            "Dispute must be in voting status"
+        );
         require(
             trustScoreContract.getTrustTier(msg.sender) !=
-                TrustScore.TrustTier.UNTRUSTED
+                TrustScore.TrustTier.UNTRUSTED,
+            "Untrusted users cannot vote"
         );
 
         TrustScore.Range memory range = trustScoreAmounts[
             trustScoreContract.getTrustTier(msg.sender)
         ];
 
-        require(score >= range.floor && score <= range.ceil);
+        require(
+            score >= range.floor && score <= range.ceil,
+            "Score must be within given range for user tier"
+        );
 
         // Choice: true for initiator, false for respondent
         // Close voting if vote hits minimum trust score required
@@ -141,13 +155,19 @@ contract Dispute {
     }
 
     function cancelDispute() public {
-        require(msg.sender == initiator);
+        require(msg.sender == initiator, "Only initiator may cancel dispute");
         disputeStatus = Status.CANCELLED;
     }
 
     function openVoting() public {
-        require(disputeStatus == Status.INITIATED);
-        require(initiatorOutcome.isValid && respondentOutcome.isValid);
+        require(
+            disputeStatus == Status.INITIATED,
+            "Dispute must be initiated to open voting"
+        );
+        require(
+            initiatorOutcome.isValid && respondentOutcome.isValid,
+            "Dispute must have outcomes submitted by initiator and respondent"
+        );
         disputeStatus = Status.VOTING;
         uint256 time = block.timestamp;
         initiatorVoteSum = VoteSum(time, 0, 0);
@@ -155,12 +175,18 @@ contract Dispute {
     }
 
     function closeVoting() internal {
-        require(disputeStatus == Status.VOTING);
+        require(
+            disputeStatus == Status.VOTING,
+            "Dispute must be in voting status"
+        );
         disputeStatus = Status.CLOSED;
     }
 
     function concludeVotes() public {
-        require(disputeStatus == Status.CLOSED);
+        require(
+            disputeStatus == Status.CLOSED,
+            "Dispute must be closed to conclude votes"
+        );
 
         // Check which vote is higher
         bool initiatorWin;
