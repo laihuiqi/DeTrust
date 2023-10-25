@@ -6,17 +6,38 @@ import "../../../BaseContract.sol";
 
 /**
  * @title MutualFundContract
- * @dev The base contract for mutual fund contract
+ * @dev The base contract for mutual details.fund contract
  */
 contract MutualFundContract {
     using SafeMath for uint256;
 
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.Fund public fund;
-    uint256 cummulativeYieldValue = 0;
-    bool isFundCollected = false;
-    bool isFundReturned = false;
+    struct fundDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.Fund fund;
+        uint256 cummulativeYieldValue;
+        bool isFundCollected;
+        bool isFundReturned;
+    }
+
+    struct fundInput {
+        BaseContract _base; 
+        string _fundName; 
+        string _fundDescription; 
+        address payable _fundManager; 
+        address payable _fundHolder; 
+        address _walletFundManager; 
+        address _walletFundHolder; 
+        uint256 _fundValue; 
+        uint256 _fundShare; 
+        uint256 _yieldRate; 
+        uint256 _interestInterval; 
+        uint256 _commisionRate; 
+        uint256 _firstInterestDate; 
+        ContractUtility.DisputeType _dispute;
+    }
+    
+    fundDetails details;
     
     event BuyFund(uint256 _value);
     event TransferFund(address _transferee);
@@ -29,56 +50,56 @@ contract MutualFundContract {
     event EndFundContract(uint256 _value);
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
     modifier fundHolderOnly() {
-        require(msg.sender == fund.fundHolder, "Only fund holder can call this function!");
+        require(msg.sender == details.fund.fundHolder, "Only fund holder can call this function!");
         _;
     }
 
     modifier fundManagerOnly() {
-        require(msg.sender == fund.fundManager, "Only fund manager can call this function!");
+        require(msg.sender == details.fund.fundManager, "Only fund manager can call this function!");
         _;
     }
 
     modifier isActive() {
-        require(fund.state == ContractUtility.SecuritiesState.ACTIVE, "Fund should be active!");
+        require(details.fund.state == ContractUtility.SecuritiesState.ACTIVE, "Fund should be active!");
         _;
     }
 
-    constructor(BaseContract _base, string memory _fundName, string memory _fundDescription, address payable _fundManager, 
-        address payable _fundHolder, address _walletFundManager, address _walletFundHolder, 
-        uint256 _fundValue, uint256 _fundShare, uint256 _yieldRate, uint256 _interestInterval, 
-        uint256 _commisionRate, uint256 _firstInterestDate, ContractUtility.DisputeType _dispute) payable {
+    constructor(fundInput memory input) payable {
     
-        fund = ContractUtility.Fund(
-            _fundName,
-            _fundDescription,
-            _fundManager,
-            _fundHolder,
+        details.fund = ContractUtility.Fund(
+            input._fundName,
+            input._fundDescription,
+            input._fundManager,
+            input._fundHolder,
             ContractUtility.SecuritiesState.ISSUED,
-            _fundValue,
-            _fundShare,
-            _yieldRate,
-            _interestInterval,
-            _commisionRate,
-            _firstInterestDate
+            input._fundValue,
+            input._fundShare,
+            input._yieldRate,
+            input._interestInterval,
+            input._commisionRate,
+            input._firstInterestDate
         );
 
-        base = _base;
+        details.base = input._base;
+        details.cummulativeYieldValue = 0;
+        details.isFundCollected = false;
+        details.isFundReturned = false;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUND,
-            _dispute, _fundManager, _fundHolder, _walletFundManager, _walletFundHolder);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.FUND,
+            input._dispute, input._fundManager, input._fundHolder, input._walletFundManager, input._walletFundHolder);
     }
 
     // buy the fund
     function buy() external payable contractReady fundHolderOnly {
-        require(fund.state == ContractUtility.SecuritiesState.ISSUED, "Fund should be issuing!");
-        require(msg.value == fund.fundValue.mul(fund.fundShares), "Insufficient fund value!");
+        require(details.fund.state == ContractUtility.SecuritiesState.ISSUED, "Fund should be issuing!");
+        require(msg.value == details.fund.fundValue.mul(details.fund.fundShares), "Insufficient fund value!");
 
-        fund.state = ContractUtility.SecuritiesState.ACTIVE;
+        details.fund.state = ContractUtility.SecuritiesState.ACTIVE;
 
         emit BuyFund(msg.value);
     }
@@ -86,50 +107,50 @@ contract MutualFundContract {
     // sell the fund
     function transfer(address payable _transferee) public contractReady fundHolderOnly isActive {
 
-        fund.fundHolder = _transferee;
+        details.fund.fundHolder = _transferee;
         emit TransferFund(_transferee);
     }
 
     // collect the fund
     function collectFund() public contractReady fundManagerOnly isActive {
-        require(!isFundCollected, "Fund has been collected!");
+        require(!details.isFundCollected, "Fund has been collected!");
 
-        fund.fundManager.transfer(fund.fundValue.mul(fund.fundShares));
-        isFundCollected = true;
+        details.fund.fundManager.transfer(details.fund.fundValue.mul(details.fund.fundShares));
+        details.isFundCollected = true;
 
-        emit CollectFund(fund.fundValue.mul(fund.fundShares));
+        emit CollectFund(details.fund.fundValue.mul(details.fund.fundShares));
     }
 
     // pay interest to the fund holders
     function payYield() external payable contractReady fundManagerOnly isActive {
-        require(block.timestamp >= fund.interestPaymentDate, "Interest payment date has not reached!");
-        require(msg.value == fund.fundValue.mul(fund.fundShares).mul(fund.yieldRate).mul(100 - fund.commisionRate).div(10000), 
+        require(block.timestamp >= details.fund.interestPaymentDate, "Interest payment date has not reached!");
+        require(msg.value == details.fund.fundValue.mul(details.fund.fundShares).mul(details.fund.yieldRate).mul(100 - details.fund.commisionRate).div(10000), 
             "Insufficient interest payment!");
     
-        fund.interestPaymentDate = fund.interestPaymentDate.add(fund.interestInterval);
-        cummulativeYieldValue = cummulativeYieldValue.add(msg.value);
+        details.fund.interestPaymentDate = details.fund.interestPaymentDate.add(details.fund.interestInterval);
+        details.cummulativeYieldValue = details.cummulativeYieldValue.add(msg.value);
 
         emit PayYield(msg.value);
     }
 
     // redeem the interest
     function redeemInterest() public contractReady fundHolderOnly isActive {
-        require(cummulativeYieldValue > 0, "No interest to redeem!");
-        require(address(this).balance >= cummulativeYieldValue.add(fund.fundValue.mul(fund.fundShares)),
-            "Insufficient fund value!");
+        require(details.cummulativeYieldValue > 0, "No interest to redeem!");
+        require(address(this).balance >= details.cummulativeYieldValue.add(details.fund.fundValue.mul(details.fund.fundShares)),
+            "Insufficient details.fund value!");
 
-        fund.fundHolder.transfer(cummulativeYieldValue);
-        cummulativeYieldValue = 0;
+        details.fund.fundHolder.transfer(details.cummulativeYieldValue);
+        details.cummulativeYieldValue = 0;
 
-        emit RedeemInterest(cummulativeYieldValue);
+        emit RedeemInterest(details.cummulativeYieldValue);
     }
 
     // return the fund
     function returnFund() external payable contractReady fundManagerOnly isActive {
-        require(msg.value == fund.fundValue.mul(fund.fundShares), "Insufficient fund value!");
-        require(!isFundReturned, "Fund has been returned!");
+        require(msg.value == details.fund.fundValue.mul(details.fund.fundShares), "Insufficient fund value!");
+        require(!details.isFundReturned, "Fund has been returned!");
         
-        isFundReturned = true;
+        details.isFundReturned = true;
 
         emit ReturnFund(msg.value);
     }
@@ -137,7 +158,7 @@ contract MutualFundContract {
     // update the yield rate
     function updateYieldRate(uint256 _newYieldRate) public contractReady fundManagerOnly {
 
-        fund.yieldRate = _newYieldRate;
+        details.fund.yieldRate = _newYieldRate;
 
         emit UpdateYieldRate(_newYieldRate);
     }
@@ -146,22 +167,22 @@ contract MutualFundContract {
     function updateCommisionRate(uint256 _newCommisionRate) public contractReady fundManagerOnly {
         require(_newCommisionRate <= 50, "Commision rate should be less than 50!");
 
-        fund.commisionRate = _newCommisionRate;
+        details.fund.commisionRate = _newCommisionRate;
 
         emit UpdateCommisionRate(_newCommisionRate);
     }
 
     // complete the contract
     function endFundContract() public contractReady {
-        require(msg.sender == fund.fundHolder, "Only fund holder can terminate the fund contract!");
-        require(address(this).balance >= fund.fundValue.mul(fund.fundShares), "Insufficient fund value!");
-        require(cummulativeYieldValue == 0, "Please redeem the interest first!");
-        require(isFundReturned, "Please wait for the return of fund first!");
+        require(msg.sender == details.fund.fundHolder, "Only fund holder can terminate the fund contract!");
+        require(address(this).balance >= details.fund.fundValue.mul(details.fund.fundShares), "Insufficient fund value!");
+        require(details.cummulativeYieldValue == 0, "Please redeem the interest first!");
+        require(details.isFundReturned, "Please wait for the return of fund first!");
 
-        fund.fundHolder.transfer(fund.fundValue.mul(fund.fundShares));
-        fund.state = ContractUtility.SecuritiesState.REDEEMED;
-        base.completeContract(contractId);
-        emit EndFundContract(fund.fundValue.mul(fund.fundShares));
+        details.fund.fundHolder.transfer(details.fund.fundValue.mul(details.fund.fundShares));
+        details.fund.state = ContractUtility.SecuritiesState.REDEEMED;
+        details.base.completeContract(details.contractId);
+        emit EndFundContract(details.fund.fundValue.mul(details.fund.fundShares));
         selfdestruct(payable(address(this)));
     }
 }

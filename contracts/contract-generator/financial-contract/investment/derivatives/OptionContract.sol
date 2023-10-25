@@ -6,16 +6,36 @@ import "../../../BaseContract.sol";
 
 /**
  * @title OptionContract
- * @dev The base contract for option contract
+ * @dev The base contract for details.option contract
  */
 contract OptionContract {
     using SafeMath for uint256;
 
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.Option public option;
-    bool premiumPaid = false;
-    bool isExercised = false;
+    struct optionDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.Option option;
+        bool premiumPaid;
+        bool isExercised;
+    }
+
+    struct optionInput {
+        BaseContract _base; 
+        address payable _seller; 
+        address payable _buyer;
+        address _walletSeller; 
+        address _walletBuyer; 
+        ContractUtility.OptionType _optionType;  
+        uint256 _assetCode; 
+        string _assetType; 
+        uint256 _quantity; 
+        uint256 _deliveryDate; 
+        uint256 _strikePrice;
+        uint256 _optionPremium;
+        ContractUtility.DisputeType _dispute;
+    }
+    
+    optionDetails details;
 
     event ContractInit(uint256 _value);
     event PurchaserVerified();
@@ -25,138 +45,137 @@ contract OptionContract {
     event VerifyTransfer();
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
     modifier purchaserOnly() {
-        require((option.optionType == ContractUtility.OptionType.CALL && msg.sender == option.optionBuyer) ||
-            (option.optionType == ContractUtility.OptionType.PUT && msg.sender == option.optionSeller), 
+        require((details.option.optionType == ContractUtility.OptionType.CALL && msg.sender == details.option.optionBuyer) ||
+            (details.option.optionType == ContractUtility.OptionType.PUT && msg.sender == details.option.optionSeller), 
             "You are not qualified to execute this function");
         _;
     }
 
     modifier optionCanExercise() {
-        require(msg.sender == option.optionBuyer, "You are not the option buyer!");
-        require(option.state == ContractUtility.DerivativeState.ACTIVE, "Option contract is not active!");
-        require(block.timestamp >= option.deliveryDate, "Delivery date has not reached!");
+        require(msg.sender == details.option.optionBuyer, "You are not the option buyer!");
+        require(details.option.state == ContractUtility.DerivativeState.ACTIVE, "Option contract is not active!");
+        require(block.timestamp >= details.option.deliveryDate, "Delivery date has not reached!");
         _;
     }
 
-    constructor(BaseContract _base, address payable _seller, address payable _buyer, 
-        address _walletSeller, address _walletBuyer, ContractUtility.OptionType _optionType,  
-        uint256 _assetCode, string memory _assetType, uint256 _quantity, uint256 _deliveryDate, uint256 _strikePrice, uint256 _optionPremium,
-        ContractUtility.DisputeType _dispute) payable {
+    constructor(optionInput memory input) payable {
         
-        option = ContractUtility.Option(
-            _seller,
-            _buyer,
+        details.option = ContractUtility.Option(
+            input._seller,
+            input._buyer,
             ContractUtility.DerivativeState.PENDING,
-            _optionType,
-            _assetType,
-            _assetCode,
-            _quantity,
-            block.timestamp.add(_deliveryDate.mul(1 days)),
-            _strikePrice,
-            _optionPremium);
+            input._optionType,
+            input._assetType,
+            input._assetCode,
+            input._quantity,
+            block.timestamp.add(input._deliveryDate.mul(1 days)),
+            input._strikePrice,
+            input._optionPremium);
         
-        base = _base;
+        details.base = input._base;
+        details.premiumPaid = false;
+        details.isExercised = false;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.OPTION,
-            _dispute, _seller, _buyer, _walletSeller, _walletBuyer);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.OPTION,
+            input._dispute, input._seller, input._buyer, input._walletSeller, input._walletBuyer);
     }
 
     // buyer of the option init the contract by paying the premium to the contract
     function buyerInit() external payable contractReady purchaserOnly {
-        require(option.state == ContractUtility.DerivativeState.PENDING, "Option contract has been verified!");        
-        require(msg.sender == option.optionBuyer, "You are not the buyer!");
-        require(msg.value == option.optionPremium, "Option premium is not correct!");
+        require(details.option.state == ContractUtility.DerivativeState.PENDING, "Option contract has been verified!");        
+        require(msg.sender == details.option.optionBuyer, "You are not the buyer!");
+        require(msg.value == details.option.optionPremium, "Option premium is not correct!");
 
-        option.optionSeller.transfer(option.optionPremium);
-        premiumPaid = true;
+        details.option.optionSeller.transfer(details.option.optionPremium);
+        details.premiumPaid = true;
         
         emit ContractInit(msg.value);
     }
 
     // purchaser of goods agrees and sends strike price to the contract
     function purchaserVerify() external payable contractReady purchaserOnly {
-        require(msg.value == option.strikePrice.mul(option.quantity), "Amount is not correct!");
-        require(premiumPaid, "Premium has not been paid!");
+        require(msg.value == details.option.strikePrice.mul(details.option.quantity), "Amount is not correct!");
+        require(details.premiumPaid, "Premium has not been paid!");
 
-        option.state = ContractUtility.DerivativeState.ACTIVE;
+        details.option.state = ContractUtility.DerivativeState.ACTIVE;
 
         emit PurchaserVerified();
     }
 
     // purchaser verifies product delivery
     function verifyTransfer() public contractReady {
-        require(isExercised, "Option has not been exercised!");
+        require(details.isExercised, "Option has not been exercised!");
 
-        option.state = ContractUtility.DerivativeState.EXPIRED;
-        base.completeContract(contractId);
+        details.option.state = ContractUtility.DerivativeState.EXPIRED;
+        details.base.completeContract(details.contractId);
 
         emit VerifyTransfer();
 
         selfdestruct(payable(address(this)));
     }
 
-    // buyer of option exercise the option
+    // buyer of option exercise the details.option
     function exerciseOption() public contractReady optionCanExercise {
-        require(address(this).balance >= option.strikePrice.mul(option.quantity), "Contract does not have enough money to exercise!");
+        require(address(this).balance >= details.option.strikePrice.mul(details.option.quantity), "Contract does not have enough money to exercise!");
         
-        if (option.optionType == ContractUtility.OptionType.CALL) {
-            // if the option is call, the buyer can exercise the option
-            option.optionSeller.transfer(option.strikePrice.mul(option.quantity));
+        if (details.option.optionType == ContractUtility.OptionType.CALL) {
+            // if the details.option is call, the buyer can exercise the details.option
+            details.option.optionSeller.transfer(details.option.strikePrice.mul(details.option.quantity));
 
         } else {
-            // if the option is put, the seller can exercise the option
-            option.optionBuyer.transfer(option.strikePrice.mul(option.quantity));
+            // if the details.option is put, the seller can exercise the details.option
+            details.option.optionBuyer.transfer(details.option.strikePrice.mul(details.option.quantity));
             
         }
 
-        isExercised = true;
+        details.isExercised = true;
 
         emit OptionExercised();
     }
 
-    // buyer of option cancel the option
+    // buyer of details.option cancel the details.option
     function cancelExercise() public contractReady optionCanExercise {
-        require(address(this).balance >= option.strikePrice.mul(option.quantity).add(option.strikePrice.mul(option.quantity)), 
+        require(address(this).balance >= details.option.strikePrice.mul(details.option.quantity).add(details.option.strikePrice.mul(details.option.quantity)), 
             "Contract does not have enough money to exercise!");
 
-        if (option.optionType == ContractUtility.OptionType.PUT) {
-            option.optionBuyer.transfer(option.strikePrice.mul(option.quantity));
-            option.optionSeller.transfer(option.strikePrice.mul(option.quantity));
+        if (details.option.optionType == ContractUtility.OptionType.PUT) {
+            details.option.optionBuyer.transfer(details.option.strikePrice.mul(details.option.quantity));
+            details.option.optionSeller.transfer(details.option.strikePrice.mul(details.option.quantity));
 
         } else {
-            option.optionBuyer.transfer(option.strikePrice.mul(option.quantity));
-            option.optionBuyer.transfer(option.strikePrice.mul(option.quantity));
+            details.option.optionBuyer.transfer(details.option.strikePrice.mul(details.option.quantity));
+            details.option.optionBuyer.transfer(details.option.strikePrice.mul(details.option.quantity));
         }
-        base.completeContract(contractId);
+        details.base.completeContract(details.contractId);
 
         emit OptionCancelled();
 
         selfdestruct(payable(address(this)));
     }
 
-    // revert the option contract before paying the strike price
+    // revert the details.option contract before paying the strike price
     function revertOption() external payable contractReady {
-        require(msg.sender == option.optionBuyer || msg.sender == option.optionSeller, 
-            "You are not involved in this option!");
-        require(option.state == ContractUtility.DerivativeState.PENDING, 
+        require(msg.sender == details.option.optionBuyer || msg.sender == details.option.optionSeller, 
+            "You are not involved in this details.option!");
+        require(details.option.state == ContractUtility.DerivativeState.PENDING, 
             "Option contract has been activated!");
-        require(address(this).balance >= option.strikePrice.mul(option.quantity), 
+        require(address(this).balance >= details.option.strikePrice.mul(details.option.quantity), 
             "Contract does not have enough money to exercise!");
 
-        if (option.optionType == ContractUtility.OptionType.CALL) {
-            option.optionBuyer.transfer(option.optionPremium);
+        if (details.option.optionType == ContractUtility.OptionType.CALL) {
+            details.option.optionBuyer.transfer(details.option.optionPremium);
 
         } else {
-            option.optionSeller.transfer(option.optionPremium);
+            details.option.optionSeller.transfer(details.option.optionPremium);
 
         }
 
-        base.voidContract(contractId);
+        details.base.voidContract(details.contractId);
         emit OptionReverted();
         
         selfdestruct(payable(address(this)));

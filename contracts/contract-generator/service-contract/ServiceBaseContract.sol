@@ -15,77 +15,95 @@ import "../BaseContract.sol";
 contract ServiceBaseContract {
     using SafeMath for uint256;
     
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.Service public service;
-    uint256 cummulativePaymentCount = 0;
-    uint256 creationDate;
+    struct serviceDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.Service service;
+        uint256 cummulativePaymentCount;
+        uint256 creationDate;
+    }
+
+    struct serviceInput {
+        BaseContract _base;
+        ContractUtility.ServiceType _serviceType;
+        address payable _serviceProvider;
+        address payable _client;
+        address _walletPayee; 
+        address _walletPayer;
+        uint256 _contractDuration;
+        string _description;
+        uint256 _paymentTerm;
+        uint256 _singlePayment;
+        uint256 _firstPaymentDate;
+        ContractUtility.DisputeType _dispute;
+    }
+    
+    serviceDetails details;
 
     event Paid(address _client, address _serviceProvider, uint256 _value);
     event Withdrawn(address _client, address _serviceProvider, uint256 _value);
     event ContractTerminated(address _client, address _serviceProvider);
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
-    constructor(BaseContract _base, ContractUtility.ServiceType _serviceType, address payable _serviceProvider, address payable _client,
-        address _walletPayee, address _walletPayer, uint256 _contractDuration, string memory _description, uint256 _paymentTerm, uint256 _singlePayment,
-        uint256 _firstPaymentDate, ContractUtility.DisputeType _dispute) payable {
+    constructor(serviceInput memory input) payable {
         
-        service = ContractUtility.Service(
-            _serviceType,
-            _serviceProvider,
-            _client,
-            _contractDuration.mul(1 days),
-            _description,
-            _paymentTerm.mul(1 days),
-            _singlePayment,
-            _firstPaymentDate
+        details.service = ContractUtility.Service(
+            input._serviceType,
+            input._serviceProvider,
+            input._client,
+            input._contractDuration.mul(1 days),
+            input._description,
+            input._paymentTerm.mul(1 days),
+            input._singlePayment,
+            input._firstPaymentDate
         );
 
-        base = _base;
-        creationDate = block.timestamp;
+        details.base = input._base;
+        details.creationDate = block.timestamp;
+        details.cummulativePaymentCount = 0;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SERVICE,
-            _dispute, _client, _serviceProvider, _walletPayee, _walletPayer);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.SERVICE,
+            input._dispute, input._client, input._serviceProvider, input._walletPayee, input._walletPayer);
     }
 
     // pay the service provider
     function pay() external payable contractReady {
-        require(creationDate + service.contractDuration > block.timestamp &&
-            block.timestamp >= service.paymentDate, "Payment date has not reached!");
-        require(msg.sender == service.client, "You are not the client!");
-        require(msg.value == service.singlePayment, "Payment amount is incorrect!");
+        require(details.creationDate + details.service.contractDuration > block.timestamp &&
+            block.timestamp >= details.service.paymentDate, "Payment date has not reached!");
+        require(msg.sender == details.service.client, "You are not the client!");
+        require(msg.value == details.service.singlePayment, "Payment amount is incorrect!");
 
-        service.paymentDate = service.paymentDate.add(service.paymentTerm);
-        cummulativePaymentCount = cummulativePaymentCount.add(1);
+        details.service.paymentDate = details.service.paymentDate.add(details.service.paymentTerm);
+        details.cummulativePaymentCount = details.cummulativePaymentCount.add(1);
 
-        emit Paid(service.client, service.serviceProvider, service.singlePayment);
+        emit Paid(details.service.client, details.service.serviceProvider, details.service.singlePayment);
     }
 
     // withdraw the payment
     function withdraw() public contractReady {
-        require(msg.sender == service.serviceProvider, "You are not the service provider!");
-        require(address(this).balance >= service.singlePayment.mul(cummulativePaymentCount), "No payment to withdraw!");
+        require(msg.sender == details.service.serviceProvider, "You are not the service provider!");
+        require(address(this).balance >= details.service.singlePayment.mul(details.cummulativePaymentCount), "No payment to withdraw!");
 
-        service.serviceProvider.transfer(service.singlePayment.mul(cummulativePaymentCount));
-        cummulativePaymentCount = 0;
+        details.service.serviceProvider.transfer(details.service.singlePayment.mul(details.cummulativePaymentCount));
+        details.cummulativePaymentCount = 0;
 
-        emit Withdrawn(service.client, service.serviceProvider, 
-            service.singlePayment.mul(cummulativePaymentCount));
+        emit Withdrawn(details.service.client, details.service.serviceProvider, 
+            details.service.singlePayment.mul(details.cummulativePaymentCount));
     }
 
     // terminate the contract
     function terminate() public contractReady  {
-        require(msg.sender == service.client || msg.sender == service.serviceProvider, 
+        require(msg.sender == details.service.client || msg.sender == details.service.serviceProvider, 
             "You are not involved in this contract!");
-        require(cummulativePaymentCount == 0, "Payment has not been withdraw!");
+        require(details.cummulativePaymentCount == 0, "Payment has not been withdraw!");
 
-        base.completeContract(contractId);
+        details.base.completeContract(details.contractId);
 
-        emit ContractTerminated(service.client, service.serviceProvider);
+        emit ContractTerminated(details.service.client, details.service.serviceProvider);
         selfdestruct(payable(address(this)));
     }
 

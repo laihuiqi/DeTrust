@@ -12,11 +12,26 @@ import "../BaseContract.sol";
 contract ContentLicensingContract {
     using SafeMath for uint256;
 
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.ContentLicensing public contentLicensing;
-    bool terminating = false;
-    bool isWithdrawn = false;   
+    struct licenseDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.ContentLicensing contentLicensing;
+        bool terminating;
+        bool isWithdrawn;
+    }   
+
+    struct licenseInput {
+        BaseContract _base; 
+        address payable _owner;
+        address payable _licensee;
+        address _walletOwner; 
+        address _walletLicensee; 
+        LicenseOwningContract _license; 
+        uint256 _startDate; 
+        ContractUtility.DisputeType _dispute;
+    }
+
+    licenseDetails details;
 
     event PayLicense(address _licensee, address _owner, uint256 _value);
     event WithdrawLicense(address _owner, address _licensee, uint256 _value);
@@ -25,93 +40,93 @@ contract ContentLicensingContract {
     event ContractTerminated(address _licensee, address _owner);
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
-    constructor(BaseContract _base, address payable _owner, address payable _licensee, 
-        address _walletOwner, address _walletLicensee, LicenseOwningContract _license, 
-        uint256 _startDate, ContractUtility.DisputeType _dispute) payable {
+    constructor(licenseInput memory input) payable {
 
-        require(_owner == _license.getOwner(), 
+        require(input._owner == input._license.getOwner(), 
             "Owner of the license is not the same as the owner of the contract!");
         
-        contentLicensing = ContractUtility.ContentLicensing(
-            _owner,
-            _licensee,
-            _license,
+        details.contentLicensing = ContractUtility.ContentLicensing(
+            input._owner,
+            input._licensee,
+            input._license,
             ContractUtility.LicenseState.PENDING,
-            _license.getLicensePrice(),
-            _startDate,
-            _startDate.add(_license.getLicenseRenewalPeriod()));
+            input._license.getLicensePrice(),
+            input._startDate,
+            input._startDate.add(input._license.getLicenseRenewalPeriod()));
 
-        base = _base;
+        details.base = input._base;
+        details.terminating = false;
+        details.isWithdrawn = false;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
-            _dispute, _owner, _licensee, _walletOwner, _walletLicensee);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.CONTENT_LICENSING,
+            input._dispute, input._owner, input._licensee, input._walletOwner, input._walletLicensee);
     }
 
     // pay the licensor
     function pay() external payable contractReady {
-        require(msg.sender == contentLicensing.licensee, "You are not the licensee!");
-        require(contentLicensing.state == ContractUtility.LicenseState.PENDING, "License should be pending!");
-        require(msg.value == contentLicensing.price, "Payment amount is incorrect!");
+        require(msg.sender == details.contentLicensing.licensee, "You are not the licensee!");
+        require(details.contentLicensing.state == ContractUtility.LicenseState.PENDING, "License should be pending!");
+        require(msg.value == details.contentLicensing.price, "Payment amount is incorrect!");
 
-        contentLicensing.state = ContractUtility.LicenseState.ACTIVE;
+        details.contentLicensing.state = ContractUtility.LicenseState.ACTIVE;
 
-        emit PayLicense(contentLicensing.licensee, contentLicensing.owner, contentLicensing.price);
+        emit PayLicense(details.contentLicensing.licensee, details.contentLicensing.owner, details.contentLicensing.price);
     }
 
     
     function withdraw() public contractReady {
-        require(msg.sender == contentLicensing.owner, "You are not the owner!");
-        require(address(this).balance >= contentLicensing.price, "No payment to withdraw!");
-        require(contentLicensing.state == ContractUtility.LicenseState.ACTIVE, 
+        require(msg.sender == details.contentLicensing.owner, "You are not the owner!");
+        require(address(this).balance >= details.contentLicensing.price, "No payment to withdraw!");
+        require(details.contentLicensing.state == ContractUtility.LicenseState.ACTIVE, 
             "License should be active!");
         
-        contentLicensing.owner.transfer(contentLicensing.price);
-        isWithdrawn = true;
+        details.contentLicensing.owner.transfer(details.contentLicensing.price);
+        details.isWithdrawn = true;
 
-        emit WithdrawLicense(contentLicensing.owner, contentLicensing.licensee, contentLicensing.price);
+        emit WithdrawLicense(details.contentLicensing.owner, details.contentLicensing.licensee, details.contentLicensing.price);
     }
 
     // extend the license
     function extend() external payable contractReady {
-        require(msg.sender == contentLicensing.licensee, "You are not the licensee!");
-        require(!terminating, "Contract is terminating!");
-        require(block.timestamp >= contentLicensing.endDate.sub(30 days), 
+        require(msg.sender == details.contentLicensing.licensee, "You are not the licensee!");
+        require(!details.terminating, "Contract is terminating!");
+        require(block.timestamp >= details.contentLicensing.endDate.sub(30 days), 
             "Only can be renewed 30 days before the license expires!");
-        require(contentLicensing.state == ContractUtility.LicenseState.ACTIVE, "License should be active!");
-        require(msg.value == contentLicensing.price, "Payment amount is incorrect!");
+        require(details.contentLicensing.state == ContractUtility.LicenseState.ACTIVE, "License should be active!");
+        require(msg.value == details.contentLicensing.price, "Payment amount is incorrect!");
 
-        contentLicensing.endDate = contentLicensing.endDate.add(contentLicensing.license.getLicenseRenewalPeriod());
-        isWithdrawn = false;
+        details.contentLicensing.endDate = details.contentLicensing.endDate.add(details.contentLicensing.license.getLicenseRenewalPeriod());
+        details.isWithdrawn = false;
 
-        emit ExtendLicense(contentLicensing.licensee, contentLicensing.owner, contentLicensing.price);
+        emit ExtendLicense(details.contentLicensing.licensee, details.contentLicensing.owner, details.contentLicensing.price);
     }
 
     // terminate the contract
     // disable license renewal
     function terminate() public contractReady {
-        require(msg.sender == contentLicensing.owner || msg.sender == contentLicensing.licensee, 
+        require(msg.sender == details.contentLicensing.owner || msg.sender == details.contentLicensing.licensee, 
             "You are not involved in this contract!");
-        require(!terminating, "Contract is already terminating!");
+        require(!details.terminating, "Contract is already terminating!");
 
-        terminating = true;
+        details.terminating = true;
 
-        emit TerminateLicense(contentLicensing.licensee, contentLicensing.owner);
+        emit TerminateLicense(details.contentLicensing.licensee, details.contentLicensing.owner);
     }
 
     // destruct the contract
     function destructContract() public contractReady {
-        require(block.timestamp > contentLicensing.endDate, "Contract is not terminating!");
-        require(isWithdrawn, "Payment has not been withdrawn!");
+        require(block.timestamp > details.contentLicensing.endDate, "Contract is not terminating!");
+        require(details.isWithdrawn, "Payment has not been withdrawn!");
 
-        base.completeContract(contractId);
+        details.base.completeContract(details.contractId);
 
-        contentLicensing.state = ContractUtility.LicenseState.EXPIRED;
+        details.contentLicensing.state = ContractUtility.LicenseState.EXPIRED;
 
-        emit ContractTerminated(contentLicensing.licensee, contentLicensing.owner);
+        emit ContractTerminated(details.contentLicensing.licensee, details.contentLicensing.owner);
         selfdestruct(payable(address(this)));
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "../DisputeMechanism.sol";
+import "../dispute-resolution-v1/Dispute.sol";
 import "../TrustScore.sol";
 import "./intellectual-property/LicenseOwningContract.sol";
 
@@ -38,13 +38,18 @@ library ContractUtility {
 
     enum DisputeType {
         NONE,
-        ARBITRATION,
-        MEDIATION,
-        ESCROW,
-        JURY
+        V1
     }
 
     enum VerificationState { PENDING, LEGITIMATE, FRAUDULENT }
+
+    struct Signature {
+        address payer;
+        bytes32 _ad1;
+        address payee;
+        bytes32 _ad2;
+        uint8 isSigned; // 0: not signed, 1: signed by one party, 2: signed by both parties
+    }
 
     struct Common {
         string title;

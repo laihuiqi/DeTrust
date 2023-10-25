@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../DeTrustToken.sol";
 import "../TrustScore.sol";
 import "./ContractUtility.sol";
-import "../DisputeMechanism.sol";
+import "../dispute-resolution-v1/Dispute.sol";
 import "./CommonContract.sol";
 
 /**
@@ -24,12 +24,8 @@ contract BaseContract {
         uint256 creationTime;
         ContractUtility.ContractType contractType;
         ContractUtility.DisputeType disputeType;
-        DisputeMechanism disputeMechanism;
-        address payer;
-        bytes32 _ad1;
-        address payee;
-        bytes32 _ad2;
-        uint8 isSigned; // 0: not signed, 1: signed by one party, 2: signed by both parties
+        Dispute disputeMechanism;
+        ContractUtility.Signature signature;
         ContractUtility.VerificationState isVerified;
         uint8 verifierNeeded;
         uint256 legitAmount;
@@ -53,17 +49,18 @@ contract BaseContract {
     mapping(uint256 => address[]) contractFraudList;
     mapping(address => address) walletMapping;
     mapping(uint256 => string[]) messageLog;
-
+    
     event ContractLogged(address indexed _contract, uint256 indexed _contractId);
     event ContractSigned(uint256 indexed _contractId, address indexed _signer);
     event ContractVerified(uint256 indexed _contractId, address indexed _verifier);
     event VerificationResolved(uint256 indexed _contractId, ContractUtility.VerificationState _vstate);
     event MessageSent(uint256 indexed _contractId, address indexed _sender);
 
+
     // modifier to check if the sender is involved in the contract
     modifier onlyInvolved(uint256 _contractId) {
-        require(msg.sender == generalRepo[_contractId].payer ||
-            msg.sender == generalRepo[_contractId].payee ||
+        require(msg.sender == generalRepo[_contractId].signature.payer ||
+            msg.sender == generalRepo[_contractId].signature.payee ||
             msg.sender == idToAddressRepo[_contractId], 
             "You are not involved in this contract!");
         _;
@@ -82,7 +79,7 @@ contract BaseContract {
     modifier correctContractPayment(uint256 _contractId) {
         TrustScore.TrustTier tier = trustScore.getTrustTier(msg.sender);
 
-        if (generalRepo[_contractId].payee == msg.sender) {
+        if (generalRepo[_contractId].signature.payee == msg.sender) {
             require(msg.value == ContractUtility.getContractCost(tier) / 2, 
             "Incorrect price paid!");
         } else {
@@ -102,11 +99,22 @@ contract BaseContract {
         counter.add(1);
 
         // map cotract address to contract id
+        {
         addressToIdRepo[_contractAddress] = counter;
         idToAddressRepo[counter] = _contractAddress;
 
         walletMapping[_payee] = _walletPayee;
         walletMapping[_payer] = _walletPayer;
+        }
+
+        {
+        ContractUtility.Signature memory signature = ContractUtility.Signature(
+            _payer,
+            bytes32(0),
+            _payee,
+            bytes32(0),
+            0
+        );
 
         // create a relative instance of basic properties for the contract and store it in repo
         generalRepo[counter] = BasicProperties(
@@ -115,17 +123,14 @@ contract BaseContract {
             block.timestamp,
             _contractType, 
             _dispute,
-            DisputeMechanism(address(0)),
-            _payer,
-            bytes32(0),
-            _payee,
-            bytes32(0),
-            0,
+            Dispute(address(0)),
+            signature,
             ContractUtility.VerificationState.PENDING,
-            20,// getVerifierTotal(Account.getTier(payer), Account.getTier(payee))
+            getVerifierTotal(trustScore.getTrustTier(_payer), trustScore.getTrustTier(_payee)),
             0,
             0
         );
+        }
 
         emit ContractLogged(_contractAddress, counter);
 
@@ -142,13 +147,13 @@ contract BaseContract {
     function completeContract(uint256 _contractId) public onlyInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.COMPLETED;
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].payer, 
+        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payer, 
             ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].payer)));
+                trustScore.getTrustTier(generalRepo[_contractId].signature.payer)));
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].payee, 
+        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payee, 
             ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].payee)));
+                trustScore.getTrustTier(generalRepo[_contractId].signature.payee)));
     }
 
     // void a contract
@@ -157,8 +162,9 @@ contract BaseContract {
     }
 
     // dispute a contract
-    function disputeContract(uint256 _contractId) public onlyInvolved(_contractId) {
+    function disputeContract(uint256 _contractId, Dispute disputeAddress) public onlyInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.DISPUTED;
+        generalRepo[_contractId].disputeMechanism = disputeAddress;
     }
 
     // check if a contract is ready
@@ -170,7 +176,7 @@ contract BaseContract {
 
     // check if the contract is signed by both parties
     modifier isSigned(uint256 _contractId) {
-        require(generalRepo[_contractId].isSigned == 2, "Contract is not signed by both parties!");
+        require(generalRepo[_contractId].signature.isSigned == 2, "Contract is not signed by both parties!");
         _;
     }
 
@@ -190,18 +196,18 @@ contract BaseContract {
 
         bytes32 messageHash = getMessageHash(msg.sender, _contractId, _nonce, _v, _r, _s);
 
-        if (msg.sender == generalRepo[_contractId].payer) {
-            require(generalRepo[_contractId]._ad1 == bytes32(0), 
+        if (msg.sender == generalRepo[_contractId].signature.payer) {
+            require(generalRepo[_contractId].signature._ad1 == bytes32(0), 
                 "You have already signed this contract!");
-            generalRepo[_contractId]._ad1 = messageHash;
+            generalRepo[_contractId].signature._ad1 = messageHash;
 
         } else {
-            require(generalRepo[_contractId]._ad2 == bytes32(0), 
+            require(generalRepo[_contractId].signature._ad2 == bytes32(0), 
                 "You have already signed this contract!");
-            generalRepo[_contractId]._ad2 = messageHash;
+            generalRepo[_contractId].signature._ad2 = messageHash;
         }
 
-        generalRepo[_contractId].isSigned = generalRepo[_contractId].isSigned + 1;
+        generalRepo[_contractId].signature.isSigned = generalRepo[_contractId].signature.isSigned + 1;
 
         emit ContractSigned(_contractId, msg.sender);
     }
@@ -213,10 +219,10 @@ contract BaseContract {
 
         bytes32 messageHash = getMessageHash(_signer, _contractId, _nonce, _v, _r, _s);
 
-        if (_signer == generalRepo[_contractId].payer) {
-            return generalRepo[_contractId]._ad1 == messageHash;
+        if (_signer == generalRepo[_contractId].signature.payer) {
+            return generalRepo[_contractId].signature._ad1 == messageHash;
         } else {
-            return generalRepo[_contractId]._ad2 == messageHash;
+            return generalRepo[_contractId].signature._ad2 == messageHash;
         }
 
     }
@@ -251,7 +257,6 @@ contract BaseContract {
 
     /**
      * @dev Modifier to check if the verification could be resolved.
-     * @param _contractId The contract id to be verified.
      * 
      * Requirements:
         * The contract must be not verified.
@@ -273,14 +278,14 @@ contract BaseContract {
 
     // verifier should not be involved in the contract
     modifier notInvolved(uint256 _contractId) {
-        require(msg.sender != generalRepo[_contractId].payer && 
-            msg.sender != generalRepo[_contractId].payee, 
+        require(msg.sender != generalRepo[_contractId].signature.payer && 
+            msg.sender != generalRepo[_contractId].signature.payee, 
             "You are involved in this contract!");
 
         if (generalRepo[_contractId].contractType == ContractUtility.ContractType.COMMON) {
             CommonContract common = CommonContract(idToAddressRepo[_contractId]);
-            require(!common.isPayer(msg.sender) && !common.isPayee(msg.sender), 
-                "You are involved in this contract!");
+            //require(!common.isPayer(msg.sender) && !common.isPayee(msg.sender), 
+            //    "You are involved in this contract!");
         }
         _;
     }
@@ -355,10 +360,10 @@ contract BaseContract {
         } else {
             voidContract(_contractId);
             
-            DeTrustToken(walletMapping[generalRepo[_contractId].payer]).burn(500);
-            DeTrustToken(walletMapping[generalRepo[_contractId].payee]).burn(500);
-            trustScore.decreaseTrustScore(generalRepo[_contractId].payer, 2);
-            trustScore.decreaseTrustScore(generalRepo[_contractId].payee, 2);
+            DeTrustToken(walletMapping[generalRepo[_contractId].signature.payer]).burn(500);
+            DeTrustToken(walletMapping[generalRepo[_contractId].signature.payee]).burn(500);
+            trustScore.decreaseTrustScore(generalRepo[_contractId].signature.payer, 2);
+            trustScore.decreaseTrustScore(generalRepo[_contractId].signature.payee, 2);
             
 
             for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
@@ -380,7 +385,7 @@ contract BaseContract {
     function sendMessage(uint256 _contractId, string memory _message) public onlyInvolved(_contractId) {
         
         // label each message string with the sender
-        if (msg.sender == generalRepo[_contractId].payer) {
+        if (msg.sender == generalRepo[_contractId].signature.payer) {
             messageLog[_contractId].push(string(abi.encodePacked('Payer', ': ', _message)));
         } else {
             messageLog[_contractId].push(string(abi.encodePacked('Payee', ': ', _message)));
