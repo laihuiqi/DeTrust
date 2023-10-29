@@ -18,7 +18,7 @@ import "./intellectual-property/LicenseOwningContract.sol";
  */
 
 library ContractUtility {
-    enum ContractState { DRAFT, INPROGRESS, DISPUTED, COMPLETED, VOIDED }
+    enum ContractState { DRAFT, SIGNED, INPROGRESS, DISPUTED, COMPLETED, VOIDED }
 
     enum ContractType {
         COMMON,

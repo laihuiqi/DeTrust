@@ -8,9 +8,12 @@ contract DeTrustToken is ERC20 {
     uint256 private _maxSupply;
     uint256 private _exchange = 0.01 ether;
 
+    mapping(address => uint8) approvedAddress;
+
     constructor(uint256 maxSupply_) ERC20("DeTrustToken", "DTR") {
         _maxSupply = maxSupply_;
         owner = msg.sender;
+        approvedAddress[owner] = 1;
     }
 
     // Modifiers
@@ -34,13 +37,30 @@ contract DeTrustToken is ERC20 {
         _;
     }
 
+    modifier onlyApproved() {
+        require(approvedAddress[msg.sender] == 1, "Not approved!");
+        _;
+    }
+
     // Functions
+    function setApproval(address toApprove) public onlyOwner {
+        approvedAddress[toApprove] = 1;
+    }
+
     function mint(uint256 amount) public exceedMax(amount) {
         _mint(thisAddress(), amount);
     }
 
+    function mintFor(address addr, uint256 amount) public exceedMax(amount) onlyApproved {
+        _mint(addr, amount);
+    }
+
     function burn(uint256 amount) public enoughSupply(amount) {
         _burn(thisAddress(), amount);
+    }
+
+    function burnFor(address addr, uint256 amount) public exceedMax(amount) onlyApproved {
+        _burn(addr, amount);
     }
 
     function topUp(

@@ -41,7 +41,7 @@ contract CommonContract {
         ContractUtility.DisputeType _dispute;
     }
     
-    commonDetails details;
+    commonDetails public details;
 
     event ContractCreated(address indexed _contract, uint256 indexed _contractId);
     event ObligationDone(uint256 indexed _obligationId);
@@ -53,7 +53,19 @@ contract CommonContract {
         _;
     }
 
-    constructor(commonInput memory input) payable {
+    modifier initiatorOnly() {
+        require(msg.sender == details.initiator, "You are not the initiator!");
+        _;
+    }
+
+    modifier contractCompleted() {
+        (bool done, bool verified) = checkContractState();
+        require(done, "Contract is not done yet!");
+        require(verified, "Contract is not verified yet!");
+        _;
+    }
+    
+    constructor(commonInput memory input) {
 
         // check if all obligation arrays have the same length
         require(input._totalObligations == input._obligationTitles.length, 
@@ -67,6 +79,8 @@ contract CommonContract {
         details.initiator = input._payees[0];
         details.respondent = input._payers[0];
         details.totalObligations = input._totalObligations;
+        details.obligationsDone = new bool[](details.totalObligations);
+        details.obligationsVerified = new bool[](details.totalObligations);
 
         // create common contract instance
         details.common = ContractUtility.Common(
@@ -87,7 +101,7 @@ contract CommonContract {
 
         emit ContractCreated(address(this), details.contractId);
     }
-
+    
     // verify if the function caller is one of the payer
     // accessible from other contract
     function isPayer(address caller) public view returns (bool) {
@@ -114,6 +128,7 @@ contract CommonContract {
     // obligation is done by any payer
     function resolveObligation(uint256 _obligationId) public payable contractReady {
         require(isPayer(msg.sender), "You are not the payer!");
+        require(!details.obligationsDone[_obligationId], "This obligation has been done!");
         require(msg.value == details.common.paymentAmount[_obligationId], 
             "You have not paid the correct amount!");
         
@@ -151,18 +166,22 @@ contract CommonContract {
                 verified = verified.add(1);
             }
         }
+        
         return (done == details.totalObligations, verified == details.totalObligations);
+    }
+
+    function initiatorWithdraw() external initiatorOnly contractCompleted {
+        require(address(this).balance > 0, "No balance to withdraw!");
+        details.initiator.transfer(address(this).balance);
     }
 
     // end contract and destruct the contract instance
     // contract is ended by any involved party
     // all the obligations should be done and verified before ending the contract
-    function endContract() public {
+    function endContract() public contractCompleted {
         require(msg.sender == details.initiator || msg.sender == details.respondent, 
             "You are not involved in this contract!");
-        (bool done, bool verified) = checkContractState();
-        require(done, "Contract is not done yet!");
-        require(verified, "Contract is not verified yet!");
+        require(address(this).balance == 0, "Contract balance is not withdrawn yet!");
 
         details.base.completeContract(details.contractId);
 
