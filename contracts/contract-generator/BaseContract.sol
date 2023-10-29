@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../DeTrustToken.sol";
 import "../TrustScore.sol";
 import "./ContractUtility.sol";
-import "../DisputeMechanism.sol";
+import "../dispute-resolution-v1/Dispute.sol";
 import "./CommonContract.sol";
 
 /**
@@ -24,26 +24,25 @@ contract BaseContract {
         uint256 creationTime;
         ContractUtility.ContractType contractType;
         ContractUtility.DisputeType disputeType;
-        DisputeMechanism disputeMechanism;
-        address payer;
-        bytes32 _ad1;
-        address payee;
-        bytes32 _ad2;
-        uint8 isSigned; // 0: not signed, 1: signed by one party, 2: signed by both parties
+        ContractUtility.Signature signature;
         ContractUtility.VerificationState isVerified;
         uint8 verifierNeeded;
         uint256 legitAmount;
         uint256 fraudAmount;
     }
 
+    address payable owner;
     TrustScore trustScore; // add trust score instance for updating trust score
+    DeTrustToken deTrustToken;
 
     uint256 counter = 0;
     uint256 minimumTimeFrame = 1 days;
     uint256 verificationCutOffTime = 2 days;
 
-    constructor(TrustScore _trustScore) {
+    constructor(TrustScore _trustScore, DeTrustToken _deTrustToken) {
+        owner = payable(address(msg.sender));
         trustScore = _trustScore;
+        deTrustToken = _deTrustToken;
     }
 
     mapping(address => uint256) public addressToIdRepo;
@@ -51,30 +50,31 @@ contract BaseContract {
     mapping(uint256 => BasicProperties) public generalRepo;
     mapping(uint256 => address[]) contractVerifyList;
     mapping(uint256 => address[]) contractFraudList;
+    mapping(uint256 => Dispute) disputeRepo;
     mapping(address => address) walletMapping;
     mapping(uint256 => string[]) messageLog;
-
+    
     event ContractLogged(address indexed _contract, uint256 indexed _contractId);
     event ContractSigned(uint256 indexed _contractId, address indexed _signer);
     event ContractVerified(uint256 indexed _contractId, address indexed _verifier);
     event VerificationResolved(uint256 indexed _contractId, ContractUtility.VerificationState _vstate);
     event MessageSent(uint256 indexed _contractId, address indexed _sender);
 
-    // modifier to check if the sender is involved in the contract
-    modifier onlyInvolved(uint256 _contractId) {
-        require(msg.sender == generalRepo[_contractId].payer ||
-            msg.sender == generalRepo[_contractId].payee ||
-            msg.sender == idToAddressRepo[_contractId], 
-            "You are not involved in this contract!");
+    modifier ownerOnly() {
+        require(msg.sender == owner, "Your are not the owner!");
         _;
     }
 
-    // modifier to check if correct price is paid on contract creation
-    modifier correctInitPrice(address _payee) {
-        TrustScore.TrustTier tier = trustScore.getTrustTier(_payee);
+    function ownerWithdraw() external ownerOnly {
+        owner.transfer(address(this).balance);
+    }
 
-        require(msg.value == ContractUtility.getContractCost(tier) / 2, 
-            "Incorrect price paid!");
+    // modifier to check if the sender is involved in the contract
+    modifier onlyInvolved(uint256 _contractId) {
+        require(msg.sender == generalRepo[_contractId].signature.payer ||
+            msg.sender == generalRepo[_contractId].signature.payee ||
+            msg.sender == idToAddressRepo[_contractId], 
+            "You are not involved in this contract!");
         _;
     }
 
@@ -82,24 +82,19 @@ contract BaseContract {
     modifier correctContractPayment(uint256 _contractId) {
         TrustScore.TrustTier tier = trustScore.getTrustTier(msg.sender);
 
-        if (generalRepo[_contractId].payee == msg.sender) {
-            require(msg.value == ContractUtility.getContractCost(tier) / 2, 
-            "Incorrect price paid!");
-        } else {
-            require(msg.value == ContractUtility.getContractCost(tier), 
-            "Incorrect price paid!");
-        }
+        require(msg.value == ContractUtility.getContractCost(
+            trustScore.getTrustTier((msg.sender))), "Incorrect price paid!");
+        
         _;
     }
 
     // contract history functions
-
     // add contract to repo
     function addToContractRepo(address _contractAddress, ContractUtility.ContractType _contractType, 
         ContractUtility.DisputeType _dispute, address _payee, address _payer, address _walletPayee, 
-        address _walletPayer) public payable correctInitPrice(_payee) returns (uint256) {
-
-        counter.add(1);
+        address _walletPayer) public returns (uint256) {
+        
+        counter = counter.add(1);
 
         // map cotract address to contract id
         addressToIdRepo[_contractAddress] = counter;
@@ -107,7 +102,15 @@ contract BaseContract {
 
         walletMapping[_payee] = _walletPayee;
         walletMapping[_payer] = _walletPayer;
-
+        
+        ContractUtility.Signature memory signature = ContractUtility.Signature(
+            _payer,
+            bytes32(0),
+            _payee,
+            bytes32(0),
+            0
+        );
+        
         // create a relative instance of basic properties for the contract and store it in repo
         generalRepo[counter] = BasicProperties(
             counter,
@@ -115,18 +118,14 @@ contract BaseContract {
             block.timestamp,
             _contractType, 
             _dispute,
-            DisputeMechanism(address(0)),
-            _payer,
-            bytes32(0),
-            _payee,
-            bytes32(0),
-            0,
+            signature,
             ContractUtility.VerificationState.PENDING,
-            20,// getVerifierTotal(Account.getTier(payer), Account.getTier(payee))
+            ContractUtility.getVerifierAmount(trustScore.getTrustTier(_payer)) 
+                + ContractUtility.getVerifierAmount(trustScore.getTrustTier(_payee)),
             0,
             0
         );
-
+        
         emit ContractLogged(_contractAddress, counter);
 
         // return contract id to the respective contract
@@ -135,6 +134,8 @@ contract BaseContract {
 
     // proceed a contract
     function proceedContract(uint256 _contractId) public onlyInvolved(_contractId) {
+        require(generalRepo[_contractId].isVerified == ContractUtility.VerificationState.LEGITIMATE, 
+            "The contract is not verified!");
         generalRepo[_contractId].state = ContractUtility.ContractState.INPROGRESS;
     }
 
@@ -142,13 +143,13 @@ contract BaseContract {
     function completeContract(uint256 _contractId) public onlyInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.COMPLETED;
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].payer, 
+        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payer, 
             ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].payer)));
+                trustScore.getTrustTier(generalRepo[_contractId].signature.payer)));
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].payee, 
+        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payee, 
             ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].payee)));
+                trustScore.getTrustTier(generalRepo[_contractId].signature.payee)));
     }
 
     // void a contract
@@ -157,8 +158,9 @@ contract BaseContract {
     }
 
     // dispute a contract
-    function disputeContract(uint256 _contractId) public onlyInvolved(_contractId) {
+    function disputeContract(uint256 _contractId, Dispute disputeAddress) public onlyInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.DISPUTED;
+        disputeRepo[_contractId] = disputeAddress;
     }
 
     // check if a contract is ready
@@ -170,7 +172,7 @@ contract BaseContract {
 
     // check if the contract is signed by both parties
     modifier isSigned(uint256 _contractId) {
-        require(generalRepo[_contractId].isSigned == 2, "Contract is not signed by both parties!");
+        require(generalRepo[_contractId].signature.isSigned == 2, "Contract is not signed by both parties!");
         _;
     }
 
@@ -189,19 +191,19 @@ contract BaseContract {
         public payable onlyInvolved(_contractId) correctContractPayment(_contractId) {
 
         bytes32 messageHash = getMessageHash(msg.sender, _contractId, _nonce, _v, _r, _s);
-
-        if (msg.sender == generalRepo[_contractId].payer) {
-            require(generalRepo[_contractId]._ad1 == bytes32(0), 
+        
+        if (msg.sender == generalRepo[_contractId].signature.payer) {
+            require(generalRepo[_contractId].signature._ad1 == bytes32(0), 
                 "You have already signed this contract!");
-            generalRepo[_contractId]._ad1 = messageHash;
+            generalRepo[_contractId].signature._ad1 = messageHash;
 
         } else {
-            require(generalRepo[_contractId]._ad2 == bytes32(0), 
+            require(generalRepo[_contractId].signature._ad2 == bytes32(0), 
                 "You have already signed this contract!");
-            generalRepo[_contractId]._ad2 = messageHash;
+            generalRepo[_contractId].signature._ad2 = messageHash;
         }
 
-        generalRepo[_contractId].isSigned = generalRepo[_contractId].isSigned + 1;
+        generalRepo[_contractId].signature.isSigned = generalRepo[_contractId].signature.isSigned + 1;
 
         emit ContractSigned(_contractId, msg.sender);
     }
@@ -213,10 +215,10 @@ contract BaseContract {
 
         bytes32 messageHash = getMessageHash(_signer, _contractId, _nonce, _v, _r, _s);
 
-        if (_signer == generalRepo[_contractId].payer) {
-            return generalRepo[_contractId]._ad1 == messageHash;
+        if (_signer == generalRepo[_contractId].signature.payer) {
+            return generalRepo[_contractId].signature._ad1 == messageHash;
         } else {
-            return generalRepo[_contractId]._ad2 == messageHash;
+            return generalRepo[_contractId].signature._ad2 == messageHash;
         }
 
     }
@@ -234,24 +236,25 @@ contract BaseContract {
           and the verifier amount is not exceeded 
           and the maximum verification time limit has not passed.
      */
-    modifier verifyAllowed(uint256 _contractId, ContractUtility.VerificationState _vstate) {
-        require(_vstate == ContractUtility.VerificationState.PENDING, "Contract is already verified!");
+    modifier verifyAllowed(uint256 _contractId) {
+        require(generalRepo[_contractId].isVerified == ContractUtility.VerificationState.PENDING, 
+            "Contract is already verified!");
 
         require(block.timestamp - generalRepo[_contractId].creationTime <= verificationCutOffTime, 
             "Verification time is over!");
 
-        require(block.timestamp - generalRepo[_contractId].creationTime <= minimumTimeFrame ||
-            (block.timestamp - generalRepo[_contractId].creationTime > minimumTimeFrame && 
+        bool verifierExceeded = block.timestamp - generalRepo[_contractId].creationTime > minimumTimeFrame && 
                 generalRepo[_contractId].legitAmount.add(generalRepo[_contractId].fraudAmount) < 
-                generalRepo[_contractId].verifierNeeded), 
-            "Verifier amount exceeded!");
+                generalRepo[_contractId].verifierNeeded;
+
+        require(block.timestamp - generalRepo[_contractId].creationTime <= minimumTimeFrame ||
+            verifierExceeded, "Verifier amount exceeded!");
 
         _;
     }
 
     /**
      * @dev Modifier to check if the verification could be resolved.
-     * @param _contractId The contract id to be verified.
      * 
      * Requirements:
         * The contract must be not verified.
@@ -260,21 +263,37 @@ contract BaseContract {
         * The contract could be verified if the maximum verification time limit has passed.
      */
     modifier verificationCanBeResolved(uint256 _contractId) {
+        /*
         require(generalRepo[_contractId].isVerified == ContractUtility.VerificationState.PENDING, 
-            "Contract is already verified!");
+            "Contract is not available for verification!");
 
         require(block.timestamp - generalRepo[_contractId].creationTime > verificationCutOffTime ||
             (block.timestamp - generalRepo[_contractId].creationTime > minimumTimeFrame &&
             (generalRepo[_contractId].legitAmount.add(generalRepo[_contractId].fraudAmount) >= 
                 generalRepo[_contractId].verifierNeeded)), 
             "Verification is not availble yet!");
+            */
         _;
     }
 
     // verifier should not be involved in the contract
     modifier notInvolved(uint256 _contractId) {
-        require(msg.sender != generalRepo[_contractId].payer && 
-            msg.sender != generalRepo[_contractId].payee, 
+        bool checkVoted = false;
+
+        for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
+            if (contractVerifyList[_contractId][i] == msg.sender) {
+                require(checkVoted, "You have voted for this contract!");
+            }
+        }
+
+        for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
+            if (contractFraudList[_contractId][i] == msg.sender) {
+                require(checkVoted, "You have voted for this contract!");
+            }
+        }
+
+        require(msg.sender != generalRepo[_contractId].signature.payer && 
+            msg.sender != generalRepo[_contractId].signature.payee, 
             "You are involved in this contract!");
 
         if (generalRepo[_contractId].contractType == ContractUtility.ContractType.COMMON) {
@@ -285,20 +304,14 @@ contract BaseContract {
         _;
     }
 
-    // get the number of verifiers needed for the contract
-    function getVerifierTotal(TrustScore.TrustTier _payerTier, TrustScore.TrustTier _payeeTier) 
-        internal pure returns (uint8) {
-        return ContractUtility.getVerifierAmount(_payerTier) + 
-            (ContractUtility.getVerifierAmount(_payeeTier));
-    }
-
     // verify the contract
     // contract can be verified by any address except involvers
     function verifyContract(uint256 _contractId, ContractUtility.VerificationState _vstate, 
-        address _wallet) public isSigned(_contractId) verifyAllowed(_contractId, _vstate) 
+        address _wallet) public isSigned(_contractId) verifyAllowed(_contractId) 
         notInvolved(_contractId) returns (ContractUtility.VerificationState) {
-
-        walletMapping[msg.sender] == _wallet;
+        require(_wallet != address(0), "Zero address");
+        
+        walletMapping[msg.sender] = _wallet;
         
         if(_vstate == ContractUtility.VerificationState.LEGITIMATE) {
             contractVerifyList[_contractId].push(msg.sender);
@@ -310,14 +323,17 @@ contract BaseContract {
 
         emit ContractVerified(_contractId, msg.sender);
 
-        if (generalRepo[_contractId].legitAmount >= generalRepo[_contractId].verifierNeeded / 2) {
-            generalRepo[_contractId].isVerified = ContractUtility.VerificationState.LEGITIMATE;
-            return ContractUtility.VerificationState.LEGITIMATE;
+        if (block.timestamp - generalRepo[_contractId].creationTime > minimumTimeFrame) {
+            if (generalRepo[_contractId].legitAmount >= generalRepo[_contractId].verifierNeeded / 2) {
+                generalRepo[_contractId].isVerified = ContractUtility.VerificationState.LEGITIMATE;
+                return ContractUtility.VerificationState.LEGITIMATE;
 
-        } else if (generalRepo[_contractId].fraudAmount >= generalRepo[_contractId].verifierNeeded / 2) {
-            generalRepo[_contractId].isVerified = ContractUtility.VerificationState.FRAUDULENT;
-            return ContractUtility.VerificationState.FRAUDULENT;
+            } else if (generalRepo[_contractId].fraudAmount >= generalRepo[_contractId].verifierNeeded / 2) {
+                generalRepo[_contractId].isVerified = ContractUtility.VerificationState.FRAUDULENT;
+                return ContractUtility.VerificationState.FRAUDULENT;
+            }
         }
+        
         return ContractUtility.VerificationState.PENDING;
     }
 
@@ -344,29 +360,29 @@ contract BaseContract {
         if (generalRepo[_contractId].isVerified == ContractUtility.VerificationState.LEGITIMATE) {
             proceedContract(_contractId);
             for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
-                DeTrustToken(walletMapping[contractVerifyList[_contractId][i]]).mint(10);
+                deTrustToken.mintFor(walletMapping[contractVerifyList[_contractId][i]], 10);
             }
 
             for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
-                DeTrustToken(walletMapping[contractFraudList[_contractId][i]]).burn(5);
+                deTrustToken.burnFor(walletMapping[contractFraudList[_contractId][i]], 5);
                 trustScore.decreaseTrustScore(contractFraudList[_contractId][i], 1);
             }
             
         } else {
             voidContract(_contractId);
             
-            DeTrustToken(walletMapping[generalRepo[_contractId].payer]).burn(500);
-            DeTrustToken(walletMapping[generalRepo[_contractId].payee]).burn(500);
-            trustScore.decreaseTrustScore(generalRepo[_contractId].payer, 2);
-            trustScore.decreaseTrustScore(generalRepo[_contractId].payee, 2);
+            deTrustToken.burnFor(walletMapping[generalRepo[_contractId].signature.payer], 500);
+            deTrustToken.burnFor(walletMapping[generalRepo[_contractId].signature.payee], 500);
+            trustScore.decreaseTrustScore(generalRepo[_contractId].signature.payer, 2);
+            trustScore.decreaseTrustScore(generalRepo[_contractId].signature.payee, 2);
             
 
             for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
-                DeTrustToken(walletMapping[contractFraudList[_contractId][i]]).mint(10);
+                deTrustToken.mintFor(walletMapping[contractFraudList[_contractId][i]], 10);
             }
 
             for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
-                DeTrustToken(walletMapping[contractVerifyList[_contractId][i]]).burn(5);
+                deTrustToken.mintFor(walletMapping[contractVerifyList[_contractId][i]], 5);
                 trustScore.decreaseTrustScore(contractVerifyList[_contractId][i], 1);
             }
         }
@@ -380,7 +396,7 @@ contract BaseContract {
     function sendMessage(uint256 _contractId, string memory _message) public onlyInvolved(_contractId) {
         
         // label each message string with the sender
-        if (msg.sender == generalRepo[_contractId].payer) {
+        if (msg.sender == generalRepo[_contractId].signature.payer) {
             messageLog[_contractId].push(string(abi.encodePacked('Payer', ': ', _message)));
         } else {
             messageLog[_contractId].push(string(abi.encodePacked('Payee', ': ', _message)));

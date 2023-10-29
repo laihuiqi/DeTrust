@@ -9,80 +9,95 @@ import "../BaseContract.sol";
  */
 contract SimplePaymentContract {
 
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.SimplePayment public simplePayment;
-    bool isPaid = false;
-    bool isWithdrawn = false;
+    struct paymentDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.SimplePayment simplePayment;
+        bool isPaid;
+        bool isWithdrawn;
+    }
+
+    struct paymentInput {
+        BaseContract _base;
+        address payable _payer; 
+        address payable _payee; 
+        address _walletPayer; 
+        address _walletPayee; 
+        uint256 _amount; 
+        string _description; 
+        ContractUtility.DisputeType _dispute;
+    }
+    
+    paymentDetails details;
 
     event PaymentMade(address _payer, address _payee, uint256 _amount);
     event PaymentWithdrawn(address _payer, address _payee, uint256 _amount);
     event ContractTerminated(address _payer, address _payee, uint256 _amount);
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
-    constructor(BaseContract _base, address payable _payer, address payable _payee, 
-        address _walletPayer, address _walletPayee, uint256 _amount, 
-        string memory _description, ContractUtility.DisputeType _dispute) payable {
-        simplePayment = ContractUtility.SimplePayment(
-            _payer,
-            _payee,
-            _amount,
+    constructor(paymentInput memory input) payable {
+        details.simplePayment = ContractUtility.SimplePayment(
+            input._payer,
+            input._payee,
+            input._amount,
             block.timestamp,
-            _description
+            input._description
         );
 
-        base = _base;
+        details.base = input._base;
+        details.isPaid = false;
+        details.isWithdrawn = false;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.SIMPLE_PAYMENT,
-            _dispute, _payee, _payer, _walletPayee, _walletPayer);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.SIMPLE_PAYMENT,
+            input._dispute, input._payee, input._payer, input._walletPayee, input._walletPayer);
     }
 
     // pay the payee
     function pay() external payable contractReady {
-        require(msg.sender == simplePayment.payer, "You are not the payer!");
-        require(!isPaid, "Payment has been made!");
-        require(msg.value == simplePayment.amount, "Incorrect amount!");
+        require(msg.sender == details.simplePayment.payer, "You are not the payer!");
+        require(!details.isPaid, "Payment has been made!");
+        require(msg.value == details.simplePayment.amount, "Incorrect amount!");
 
-        simplePayment.paymentDate = block.timestamp;
-        isPaid = true;
+        details.simplePayment.paymentDate = block.timestamp;
+        details.isPaid = true;
 
-        emit PaymentMade(simplePayment.payer, simplePayment.payee, simplePayment.amount);
+        emit PaymentMade(details.simplePayment.payer, details.simplePayment.payee, details.simplePayment.amount);
     }
 
     // withdraw the payment
     function withdraw() public contractReady {
-        require(msg.sender == simplePayment.payee, "You are not the payee!");
-        require(isPaid, "Payment has not been made!");
-        require(address(this).balance >= simplePayment.amount, "Incorrect amount!");
+        require(msg.sender == details.simplePayment.payee, "You are not the payee!");
+        require(details.isPaid, "Payment has not been made!");
+        require(address(this).balance >= details.simplePayment.amount, "Incorrect amount!");
 
-        simplePayment.payee.transfer(simplePayment.amount);
-        isWithdrawn = true;
+        details.simplePayment.payee.transfer(details.simplePayment.amount);
+        details.isWithdrawn = true;
 
-        emit PaymentWithdrawn(simplePayment.payer, simplePayment.payee, simplePayment.amount);
+        emit PaymentWithdrawn(details.simplePayment.payer, details.simplePayment.payee, details.simplePayment.amount);
     }
 
     // terminate the contract
     function terminate() public contractReady {
-        require(msg.sender == simplePayment.payer || msg.sender == simplePayment.payee, 
+        require(msg.sender == details.simplePayment.payer || msg.sender == details.simplePayment.payee, 
             "You are not involved in this contract!");
 
-        if (isPaid && !isWithdrawn) {
-            require(address(this).balance >= simplePayment.amount, "Incorrect contract balance!");
-            simplePayment.payer.transfer(simplePayment.amount);
-            base.voidContract(contractId);
+        if (details.isPaid && !details.isWithdrawn) {
+            require(address(this).balance >= details.simplePayment.amount, "Incorrect contract balance!");
+            details.simplePayment.payer.transfer(details.simplePayment.amount);
+            details.base.voidContract(details.contractId);
 
-        } else if (isPaid) {
-            require(isWithdrawn, "Payment has not been withdrawn!");
-            base.completeContract(contractId);
+        } else if (details.isPaid) {
+            require(details.isWithdrawn, "Payment has not been withdrawn!");
+            details.base.completeContract(details.contractId);
         } else {
-            base.voidContract(contractId);
+            details.base.voidContract(details.contractId);
         }
 
-        emit ContractTerminated(simplePayment.payer, simplePayment.payee, simplePayment.amount);
+        emit ContractTerminated(details.simplePayment.payer, details.simplePayment.payee, details.simplePayment.amount);
 
         selfdestruct(payable(address(this)));
     }

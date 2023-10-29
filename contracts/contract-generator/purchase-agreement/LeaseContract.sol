@@ -11,10 +11,30 @@ import "../BaseContract.sol";
 contract LeaseContract {
     using SafeMath for uint256;
     
-    BaseContract public base;
-    uint256 contractId;
-    ContractUtility.Lease public lease;
-    uint256 cummulativePaymentCount = 0;
+    struct leaseDetails {
+        BaseContract base;
+        uint256 contractId;
+        ContractUtility.Lease lease;
+        uint256 cummulativePaymentCount;
+    }
+
+    struct leaseInput {
+        BaseContract _base;
+        address payable _landlord; 
+        address payable _tenant;
+        address _walletLandlord; 
+        address _walletTenant;
+        string _description; 
+        uint256 _startDate; 
+        uint256 _endDate; 
+        uint256 _rent; 
+        uint256 _deposit; 
+        uint256 _occupancyLimit; 
+        uint256 _stampDuty; 
+        ContractUtility.DisputeType _dispute;
+    }
+    
+    leaseDetails details;
 
     event InitializeRent(uint256 _value);
     event PayRent(uint256 _value);
@@ -23,120 +43,118 @@ contract LeaseContract {
     event ExtendEndDate(address _landlord, address _tenant, uint256 _period);
 
     modifier contractReady() {
-        require(base.isContractReady(contractId), "Contract is not ready!");
+        require(details.base.isContractReady(details.contractId), "Contract is not ready!");
         _;
     }
 
     modifier isActive() {
-        require(lease.state == ContractUtility.LeaseState.ACTIVE, "Lease should be active!");
+        require(details.lease.state == ContractUtility.LeaseState.ACTIVE, "Lease should be active!");
         _;
     }
 
     modifier tenantOnly() {
-        require(msg.sender == lease.tenant, "Only tenant can call this function!");
+        require(msg.sender == details.lease.tenant, "Only tenant can call this function!");
         _;
     }
 
     modifier landlordOnly() {
-        require(msg.sender == lease.landlord, "Only landlord can call this function!");
+        require(msg.sender == details.lease.landlord, "Only landlord can call this function!");
         _;
     }
 
     modifier checkPaymentDate() {
-        require(block.timestamp >= lease.paymentDate, "Payment date has not reached!");
+        require(block.timestamp >= details.lease.paymentDate, "Payment date has not reached!");
         _;
     }
 
-    constructor(BaseContract _base, address payable _landlord, address payable _tenant, 
-        address _walletLandlord, address _walletTenant, string memory _description, 
-        uint256 _startDate, uint256 _endDate, uint256 _rent, uint256 _deposit, uint256 _occupancyLimit, 
-        uint256 _stampDuty, ContractUtility.DisputeType _dispute) payable {
+    constructor(leaseInput memory input) payable {
         
-        lease = ContractUtility.Lease(
-            _landlord,
-            _tenant,
-            _description,
+        details.lease = ContractUtility.Lease(
+            input._landlord,
+            input._tenant,
+            input._description,
             ContractUtility.LeaseState.PENDING,
-            _startDate,
-            _endDate,
-            _startDate.add(30 days),
-            _rent,
-            _deposit,
-            _occupancyLimit,
-            _stampDuty
+            input._startDate,
+            input._endDate,
+            input._startDate.add(30 days),
+            input._rent,
+            input._deposit,
+            input._occupancyLimit,
+            input._stampDuty
         );
 
-        base = _base;
+        details.base = input._base;
+        details.cummulativePaymentCount = 0;
 
-        contractId = base.addToContractRepo(address(this), ContractUtility.ContractType.LEASE,
-            _dispute, _landlord, _tenant, _walletLandlord, _walletTenant);
+        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.LEASE,
+            input._dispute, input._landlord, input._tenant, input._walletLandlord, input._walletTenant);
     }
 
     // get the payment amount for the first payment
     function getFirstPayment() public view returns (uint256) {
-        return lease.rent.add(lease.deposit).add(lease.rent.mul(lease.stampDuty).div(100));
+        return details.lease.rent.add(details.lease.deposit).add(details.lease.rent.mul(details.lease.stampDuty).div(100));
     }
 
     // initiate the rent and pay deposit
     function initRent() external payable contractReady tenantOnly checkPaymentDate {
-        require(lease.state == ContractUtility.LeaseState.PENDING, "Lease should be pending!");
+        require(details.lease.state == ContractUtility.LeaseState.PENDING, "Lease should be pending!");
         require(msg.value == getFirstPayment(), "Payment amount is incorrect!");
 
-        lease.paymentDate = lease.paymentDate.add(30 days);
-        lease.state = ContractUtility.LeaseState.ACTIVE;
-        cummulativePaymentCount = cummulativePaymentCount.add(1);
+        details.lease.paymentDate = details.lease.paymentDate.add(30 days);
+        details.lease.state = ContractUtility.LeaseState.ACTIVE;
+        details.cummulativePaymentCount = details.cummulativePaymentCount.add(1);
 
         emit InitializeRent(msg.value);
     }
 
     // pay the rent by the tenant
     function pay() external payable contractReady tenantOnly isActive checkPaymentDate {
-        require(msg.value == lease.rent, "Payment amount is incorrect!");
+        require(msg.value == details.lease.rent, "Payment amount is incorrect!");
 
-        lease.paymentDate = lease.paymentDate.add(30 days);
-        cummulativePaymentCount = cummulativePaymentCount.add(1);
+        details.lease.paymentDate = details.lease.paymentDate.add(30 days);
+        details.cummulativePaymentCount = details.cummulativePaymentCount.add(1);
 
         emit PayRent(msg.value);
     }
 
     // withdraw the payment by the landlord
     function withdraw() public contractReady landlordOnly {
-        require(address(this).balance - lease.deposit >= lease.rent.mul(cummulativePaymentCount), "No payment to withdraw!");
+        require(address(this).balance - details.lease.deposit >= details.lease.rent.mul(details.cummulativePaymentCount), "No payment to withdraw!");
 
-        lease.landlord.transfer(lease.rent.mul(cummulativePaymentCount));
-        cummulativePaymentCount = 0;
+        details.lease.landlord.transfer(details.lease.rent.mul(details.cummulativePaymentCount));
+        details.cummulativePaymentCount = 0;
 
-        emit WithdrawRent(lease.landlord, lease.tenant, lease.rent.mul(cummulativePaymentCount));
+        emit WithdrawRent(details.lease.landlord, details.lease.tenant, details.lease.rent.mul(details.cummulativePaymentCount));
     }
 
     // terminate the contract
     function terminate() public contractReady isActive {
-        require(msg.sender == lease.tenant || msg.sender == lease.landlord, "You are not involved in this contract!");
-        require((block.timestamp >= lease.endDate  ||  block.timestamp > lease.paymentDate.add(90 days)), 
+        require(msg.sender == details.lease.tenant || msg.sender == details.lease.landlord, "You are not involved in this contract!");
+        require((block.timestamp >= details.lease.endDate  ||  block.timestamp > details.lease.paymentDate.add(90 days)), 
             "Termination condition has not reached!");
-        require(cummulativePaymentCount == 0, "Payment has not been withdraw!");
+        require(details.cummulativePaymentCount == 0, "Payment has not been withdraw!");
 
-        if (block.timestamp >= lease.endDate) {
-            lease.tenant.transfer(lease.deposit);
-            base.completeContract(contractId);
+        if (block.timestamp >= details.lease.endDate) {
+            details.lease.tenant.transfer(details.lease.deposit);
+            details.base.completeContract(details.contractId);
 
         } else {
-            base.voidContract(contractId);
+            details.base.voidContract(details.contractId);
         }
 
-        emit TerminateRent(lease.landlord, lease.tenant, lease.rent.mul(cummulativePaymentCount));
+        emit TerminateRent(details.lease.landlord, details.lease.tenant, details.lease.rent.mul(details.cummulativePaymentCount));
 
-        lease.state = ContractUtility.LeaseState.TERMINATED;
+        details.lease.state = ContractUtility.LeaseState.TERMINATED;
 
         selfdestruct(payable(address(this)));
     }
 
     // extend the contract end date
     function extendEndDate(uint256 _period) public contractReady landlordOnly isActive() {
-        require(block.timestamp < lease.endDate, "Contract has already ended!");
+        require(block.timestamp < details.lease.endDate, "Contract has already ended!");
 
-        lease.endDate = lease.endDate.add(_period.mul(30 days));
+        details.lease.endDate = details.lease.endDate.add(_period.mul(30 days));
 
-        emit ExtendEndDate(lease.landlord, lease.tenant, _period);
+        emit ExtendEndDate(details.lease.landlord, details.lease.tenant, _period);
     }
 }
