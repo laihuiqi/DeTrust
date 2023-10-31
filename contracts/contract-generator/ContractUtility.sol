@@ -51,6 +51,30 @@ library ContractUtility {
         uint8 isSigned; // 0: not signed, 1: signed by one party, 2: signed by both parties
     }
 
+    // basic properties that are shared among all contracts
+    struct BasicProperties {
+        uint256 id;
+        ContractUtility.ContractState state;
+        uint256 creationTime;
+        ContractUtility.ContractType contractType;
+        ContractUtility.DisputeType disputeType;
+        ContractUtility.Signature signature;
+        ContractUtility.VerificationState isVerified;
+        uint8 verifierNeeded;
+        uint256 legitAmount;
+        uint256 fraudAmount;
+    }
+
+    struct ContractRepoInput {
+        address _contractAddress;
+        ContractUtility.ContractType _contractType;
+        ContractUtility.DisputeType _dispute; 
+        address _payee; 
+        address _payer; 
+        address _walletPayee;
+        address _walletPayer;
+    }
+
     struct Common {
         string title;
         string contractType;
