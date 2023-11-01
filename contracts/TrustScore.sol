@@ -29,7 +29,7 @@ contract TrustScore {
         TrustTier tier;
     }
 
-    mapping(address => Trust) private trustStore;
+    mapping(address => Trust) trustStore;
 
     constructor(uint256 defaultTrustScore_) {
         owner = msg.sender;
@@ -48,12 +48,12 @@ contract TrustScore {
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner);
+        require(msg.sender == owner, "Not contract owner!");
         _;
     }
 
     modifier onlyApproved() {
-        require(approvedAddresses[msg.sender] != 0);
+        require(approvedAddresses[msg.sender] == 1, "User not approved!");
         _;
     }
 
