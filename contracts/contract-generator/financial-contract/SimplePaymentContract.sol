@@ -39,7 +39,7 @@ contract SimplePaymentContract {
         _;
     }
 
-    constructor(paymentInput memory input) payable {
+    constructor(paymentInput memory input) {
         details.simplePayment = ContractUtility.SimplePayment(
             input._payer,
             input._payee,
@@ -52,8 +52,17 @@ contract SimplePaymentContract {
         details.isPaid = false;
         details.isWithdrawn = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.SIMPLE_PAYMENT,
-            input._dispute, input._payee, input._payer, input._walletPayee, input._walletPayer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.SIMPLE_PAYMENT,
+            input._dispute, 
+            input._payee, 
+            input._payer, 
+            input._walletPayee, 
+            input._walletPayer
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // pay the payee

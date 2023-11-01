@@ -67,7 +67,7 @@ contract LeaseContract {
         _;
     }
 
-    constructor(leaseInput memory input) payable {
+    constructor(leaseInput memory input) {
         
         details.lease = ContractUtility.Lease(
             input._landlord,
@@ -86,8 +86,17 @@ contract LeaseContract {
         details.base = input._base;
         details.cummulativePaymentCount = 0;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.LEASE,
-            input._dispute, input._landlord, input._tenant, input._walletLandlord, input._walletTenant);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.LEASE,
+            input._dispute, 
+            input._landlord, 
+            input._tenant, 
+            input._walletLandlord, 
+            input._walletTenant
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // get the payment amount for the first payment

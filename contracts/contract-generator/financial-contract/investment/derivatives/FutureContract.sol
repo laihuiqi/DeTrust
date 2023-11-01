@@ -66,7 +66,7 @@ contract FutureContract {
         _;
     }
 
-    constructor(futureInput memory input) payable {
+    constructor(futureInput memory input) {
 
         details.future = ContractUtility.Future(
             input._seller,
@@ -85,9 +85,17 @@ contract FutureContract {
         details.isPaid = false;
         details.isReceived = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.FUTURE,
-            input._dispute, input._seller, input._buyer, input._walletSeller, input._walletBuyer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.FUTURE,
+            input._dispute, 
+            input._seller, 
+            input._buyer, 
+            input._walletSeller, 
+            input._walletBuyer
+        );
 
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // buyer verify the future contract

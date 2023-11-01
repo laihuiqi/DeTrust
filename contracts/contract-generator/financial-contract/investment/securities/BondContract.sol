@@ -69,7 +69,7 @@ contract BondContract {
         _;
     }
 
-    constructor(bondInput memory input) payable {
+    constructor(bondInput memory input) {
         
         details.bond = ContractUtility.Bond(
             input._issuer,
@@ -93,8 +93,17 @@ contract BondContract {
         details.isRedemptionReady = false;
         details.isFundCollected = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.BOND,
-            input._dispute, input._issuer, input._owner, input._walletIssuer, input._walletOwner);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.BOND,
+            input._dispute, 
+            input._issuer, 
+            input._owner, 
+            input._walletIssuer, 
+            input._walletOwner
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // buy the bond

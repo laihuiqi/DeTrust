@@ -69,7 +69,7 @@ contract MutualFundContract {
         _;
     }
 
-    constructor(fundInput memory input) payable {
+    constructor(fundInput memory input) {
     
         details.fund = ContractUtility.Fund(
             input._fundName,
@@ -90,8 +90,17 @@ contract MutualFundContract {
         details.isFundCollected = false;
         details.isFundReturned = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.FUND,
-            input._dispute, input._fundManager, input._fundHolder, input._walletFundManager, input._walletFundHolder);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.FUND,
+            input._dispute, 
+            input._fundManager, 
+            input._fundHolder, 
+            input._walletFundManager, 
+            input._walletFundHolder
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // buy the fund

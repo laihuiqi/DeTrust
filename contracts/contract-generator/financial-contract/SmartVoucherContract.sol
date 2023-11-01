@@ -39,7 +39,7 @@ contract smartVoucherContract {
         _;
     }
 
-    constructor(voucherInput memory input) payable {
+    constructor(voucherInput memory input) {
         details.smartVoucher = ContractUtility.SmartVoucher(
             input._issuer,
             input._redeemer,
@@ -53,8 +53,17 @@ contract smartVoucherContract {
 
         details.base = input._base;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.SMART_VOUCHER,
-            input._dispute, input._issuer, input._redeemer, input._walletIssuer, input._walletRedeemer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.SMART_VOUCHER,
+            input._dispute, 
+            input._issuer, 
+            input._redeemer, 
+            input._walletIssuer, 
+            input._walletRedeemer
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // redeem the voucher
