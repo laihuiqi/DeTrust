@@ -63,7 +63,7 @@ contract OptionContract {
         _;
     }
 
-    constructor(optionInput memory input) payable {
+    constructor(optionInput memory input) {
         
         details.option = ContractUtility.Option(
             input._seller,
@@ -81,8 +81,17 @@ contract OptionContract {
         details.premiumPaid = false;
         details.isExercised = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.OPTION,
-            input._dispute, input._seller, input._buyer, input._walletSeller, input._walletBuyer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.OPTION,
+            input._dispute, 
+            input._seller, 
+            input._buyer, 
+            input._walletSeller, 
+            input._walletBuyer
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // buyer of the option init the contract by paying the premium to the contract

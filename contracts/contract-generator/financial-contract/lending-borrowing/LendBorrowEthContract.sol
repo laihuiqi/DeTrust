@@ -46,7 +46,7 @@ contract LendBorrowEthContract {
         _;
     }
 
-    constructor(lendInput memory input) payable{
+    constructor(lendInput memory input) {
     
         details.lendBorrowEth = ContractUtility.LendBorrow(
             input._borrower,
@@ -64,8 +64,17 @@ contract LendBorrowEthContract {
         details.isRepaid = false;
         details.isRetrieved = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.LEND_BORROW_ETH,
-            input._dispute, input._lender, input._borrower, input._walletLender, input._walletBorrower);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.LEND_BORROW_ETH,
+            input._dispute, 
+            input._lender, 
+            input._borrower, 
+            input._walletLender, 
+            input._walletBorrower
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     
     }
 

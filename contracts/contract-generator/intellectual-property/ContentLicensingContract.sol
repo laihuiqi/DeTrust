@@ -44,7 +44,7 @@ contract ContentLicensingContract {
         _;
     }
 
-    constructor(licenseInput memory input) payable {
+    constructor(licenseInput memory input) {
 
         require(input._owner == input._license.getOwner(), 
             "Owner of the license is not the same as the owner of the contract!");
@@ -62,8 +62,17 @@ contract ContentLicensingContract {
         details.terminating = false;
         details.isWithdrawn = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.CONTENT_LICENSING,
-            input._dispute, input._owner, input._licensee, input._walletOwner, input._walletLicensee);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.CONTENT_LICENSING,
+            input._dispute, 
+            input._owner, 
+            input._licensee, 
+            input._walletOwner, 
+            input._walletLicensee
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // pay the licensor

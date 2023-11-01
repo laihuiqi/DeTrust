@@ -62,7 +62,7 @@ contract PurchaseBaseContract {
         _;
     }
 
-    constructor(purchaseInput memory input) payable {
+    constructor(purchaseInput memory input) {
         
         details.purchase = ContractUtility.Purchase(
             input._seller,
@@ -79,8 +79,17 @@ contract PurchaseBaseContract {
         details.isDelivered = false;
         details.isWithdrawn = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.PURCHASE,
-            input._dispute, input._seller, input._buyer, input._walletSeller, input._walletBuyer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.PURCHASE,
+            input._dispute, 
+            input._seller, 
+            input._buyer, 
+            input._walletSeller, 
+            input._walletBuyer
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // pay the seller

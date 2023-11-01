@@ -49,7 +49,7 @@ contract ServiceBaseContract {
         _;
     }
 
-    constructor(serviceInput memory input) payable {
+    constructor(serviceInput memory input) {
         
         details.service = ContractUtility.Service(
             input._serviceType,
@@ -66,8 +66,17 @@ contract ServiceBaseContract {
         details.creationDate = block.timestamp;
         details.cummulativePaymentCount = 0;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.SERVICE,
-            input._dispute, input._client, input._serviceProvider, input._walletPayee, input._walletPayer);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.SERVICE,
+            input._dispute, 
+            input._client, 
+            input._serviceProvider, 
+            input._walletPayee, 
+            input._walletPayer
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // pay the service provider

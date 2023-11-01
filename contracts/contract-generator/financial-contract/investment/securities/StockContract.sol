@@ -69,7 +69,7 @@ contract StockContract {
         _;
     }
 
-    constructor(stockInput memory input) payable {
+    constructor(stockInput memory input) {
         
         details.stock = ContractUtility.Stock(
             input._issuer,
@@ -89,8 +89,17 @@ contract StockContract {
         details.isFundCollected = false;
         details.isFundReturned = false;
 
-        details.contractId = details.base.addToContractRepo(address(this), ContractUtility.ContractType.STOCK,
-            input._dispute, input._issuer, input._shareHolder, input._walletIssuer, input._walletShareHoler);
+        ContractUtility.ContractRepoInput memory repoInput = ContractUtility.ContractRepoInput(
+            address(this), 
+            ContractUtility.ContractType.STOCK,
+            input._dispute, 
+            input._issuer, 
+            input._shareHolder, 
+            input._walletIssuer, 
+            input._walletShareHoler
+        );
+
+        details.contractId = details.base.addToContractRepo(repoInput);
     }
 
     // buy the stock
