@@ -204,7 +204,6 @@ contract CommonContract {
 
         emit ContractEnded(address(this), details.contractId);
         
-        selfdestruct(payable(address(this)));
     }
 
 }
