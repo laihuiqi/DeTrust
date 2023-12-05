@@ -20,6 +20,7 @@ contract BaseContract {
     address payable owner;
     TrustScore trustScore; // add trust score instance for updating trust score
     DeTrustToken deTrustToken;
+    address voting;
 
     uint256 counter = 0;
 
@@ -37,8 +38,17 @@ contract BaseContract {
     mapping(address => uint256) approved;
     mapping(address => address) walletMapping;
     
-    event ContractLogged(address indexed _contract, uint256 indexed _contractId);
-    
+    event ContractLogged(address _contract, uint256 _contractId);
+    event ContractProceeded(uint256 _cotractId);
+    event ContractCompleted(uint256 _contractId);
+    event ContractPendingComplete(uint256 _contractId);
+    event ContractVoided(uint256 _contractId);
+    event ContractDisputeRecorded(uint256 _contractId);
+    event SetApprovalToBase(address _approvedAddress);
+    event SetVotingMechanism(address _votingContract);
+    event PropertiesRecorded(uint256 _contractId);
+    event WalletSet(address _user);
+    event BaseOwnerWithdrawn();
 
     modifier ownerOnly() {
         require(msg.sender == owner, "Your are not the owner!");
@@ -69,16 +79,17 @@ contract BaseContract {
     // modifier to check if correct price is paid on contract payment
     modifier creationEligibility(address _payee, address _payer, address _walletPayee, 
         address _walletPayer) {
-        uint256 amountPayee = ContractUtility.getContractCost(trustScore.getTrustTier(_payee));
-        uint256 amountPayer = ContractUtility.getContractCost(trustScore.getTrustTier(_payer));
+        uint256 amountPayee = trustScore.getContractCost(trustScore.getTrustTier(_payee));
+        uint256 amountPayer = trustScore.getContractCost(trustScore.getTrustTier(_payer));
 
         require(trustScore.getTrustScore(_payee) >= 2, "Insufficient trust score for initiator!");
         require(trustScore.getTrustScore(_payer) >= 2, "Insufficient trust score for respondent!");
-        require(deTrustToken.balanceOf(_walletPayee) >= amountPayee, "Insufficient trust score for initiator!");
-        require(deTrustToken.balanceOf(_walletPayer) >= amountPayer, "Insufficient trust score for respondent!");
+        require(deTrustToken.balanceOf(_walletPayee) >= amountPayee, "Insufficient trust token for initiator!");
+        require(deTrustToken.balanceOf(_walletPayer) >= amountPayer, "Insufficient trust token for respondent!");
         
         deTrustToken.transferFrom(_walletPayee, address(this), amountPayee);
         deTrustToken.transferFrom(_walletPayer, address(this), amountPayer);
+        deTrustToken.approve(voting, amountPayee.add(amountPayer));
         _;
     }
 
@@ -128,10 +139,11 @@ contract BaseContract {
             repoInput._dispute,
             signature,
             ContractUtility.VerificationState.PENDING,
-            ContractUtility.getVerifierAmount(trustScore.getTrustTier(repoInput._payer)) 
-                + ContractUtility.getVerifierAmount(trustScore.getTrustTier(repoInput._payee)),
+            trustScore.getVerifierAmount(trustScore.getTrustTier(repoInput._payer)) 
+                + trustScore.getVerifierAmount(trustScore.getTrustTier(repoInput._payee)),
             0,
-            0
+            0,
+            false
         );
         
         emit ContractLogged(repoInput._contractAddress, counter);
@@ -145,30 +157,44 @@ contract BaseContract {
         require(generalRepo[_contractId].isVerified == ContractUtility.VerificationState.LEGITIMATE, 
             "The contract is not verified!");
         generalRepo[_contractId].state = ContractUtility.ContractState.INPROGRESS;
+
+        emit ContractProceeded(_contractId);
     }
 
     // complete a contract
     function completeContract(uint256 _contractId) public approvedOrInvolved(_contractId) {
-        generalRepo[_contractId].state = ContractUtility.ContractState.COMPLETED;
+        if (generalRepo[_contractId].completed) {
+            generalRepo[_contractId].state = ContractUtility.ContractState.COMPLETED;
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payer, 
-            ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].signature.payer)));
+            trustScore.increaseTrustScore(generalRepo[_contractId].signature.payer, 
+                trustScore.getContractCompletionReward(
+                    trustScore.getTrustTier(generalRepo[_contractId].signature.payer)));
 
-        trustScore.increaseTrustScore(generalRepo[_contractId].signature.payee, 
-            ContractUtility.getContractCompletionReward(
-                trustScore.getTrustTier(generalRepo[_contractId].signature.payee)));
+            trustScore.increaseTrustScore(generalRepo[_contractId].signature.payee, 
+                trustScore.getContractCompletionReward(
+                    trustScore.getTrustTier(generalRepo[_contractId].signature.payee)));
+            emit ContractCompleted(_contractId);
+
+        } else {
+            generalRepo[_contractId].completed = true;
+            emit ContractPendingComplete(_contractId);
+        }
+        
     }
 
     // void a contract
     function voidContract(uint256 _contractId) public approvedOrInvolved(_contractId) {
         generalRepo[_contractId].state = ContractUtility.ContractState.VOIDED;
+        emit ContractVoided(_contractId);
     }
 
     // dispute a contract
-    function disputeContract(uint256 _contractId, Dispute disputeAddress) public onlyInvolved(_contractId, msg.sender) {
+    function disputeContract(uint256 _contractId, Dispute disputeAddress, 
+        ContractUtility.DisputeType disputeType) public onlyInvolved(_contractId, msg.sender) {
         generalRepo[_contractId].state = ContractUtility.ContractState.DISPUTED;
+        generalRepo[_contractId].disputeType = disputeType;
         disputeRepo[_contractId] = disputeAddress;
+        emit ContractDisputeRecorded(_contractId);
     }
 
     // check if a contract is ready
@@ -184,14 +210,23 @@ contract BaseContract {
 
     function setApproval(address _approvedAddress) public ownerOnly {
         approved[_approvedAddress] = 1;
+        emit SetApprovalToBase(_approvedAddress);
+    }
+
+    function setVotingAccess(address _votingContract) public ownerOnly {
+        approved[_votingContract] = 1;
+        voting = _votingContract;
+        emit SetVotingMechanism(_votingContract);
     }
 
     function setGeneralRepo(uint256 _contractId, ContractUtility.BasicProperties memory _newProp) public approvedOnly {
         generalRepo[_contractId] = _newProp;
+        emit PropertiesRecorded(_contractId);
     }
 
     function setWalletMapping(address _user, address _wallet) public approvedOnly {
         walletMapping[_user] = _wallet;
+        emit WalletSet(_user);
     }
 
     function getGeneralRepo(uint256 _contractId) public view approvedOnly returns(ContractUtility.BasicProperties memory) {
@@ -212,6 +247,7 @@ contract BaseContract {
 
     function ownerWithdraw() external ownerOnly {
         owner.transfer(address(this).balance);
+        emit BaseOwnerWithdrawn();
     }
 
 }
