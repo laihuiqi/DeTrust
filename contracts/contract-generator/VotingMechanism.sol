@@ -135,6 +135,8 @@ contract VotingMechanism {
     function verifyContract(uint256 _contractId, ContractUtility.VerificationState _vstate, 
         address _wallet) public notFreeze(_contractId) isSigned(_contractId) verifyAllowed(_contractId) 
         notInvolved(_contractId, _wallet) returns (ContractUtility.VerificationState) {
+
+        require(_vstate != ContractUtility.VerificationState.PENDING, "Invalid verification option!");
         
         base.setWalletMapping(msg.sender, _wallet);
 
@@ -150,7 +152,7 @@ contract VotingMechanism {
 
         base.setGeneralRepo(_contractId, properties);
 
-        deTrustToken.mintFor(_wallet, 10);
+        deTrustToken.transferFrom(address(base), _wallet, 10);
 
         emit ContractVerified(_contractId, msg.sender);
 
@@ -215,6 +217,7 @@ contract VotingMechanism {
                 deTrustToken.burnFor(base.getWalletAddress(contractVerifyList[_contractId][i]), 100);
                 trustScore.decreaseTrustScore(contractVerifyList[_contractId][i], 1);
             }
+
         }
 
         emit VerificationResolved(_contractId, properties.isVerified);

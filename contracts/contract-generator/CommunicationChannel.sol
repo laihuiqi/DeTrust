@@ -9,7 +9,7 @@ contract CommunicationChannel {
 
     mapping(uint256 => string[]) messageLog;
 
-    event MessageSent(uint256 indexed _contractId, address indexed _sender);
+    event MessageSent(uint256 indexed _contractId, address indexed _sender, string _message);
 
     constructor(BaseContract _base) {
         base = _base;
@@ -39,7 +39,7 @@ contract CommunicationChannel {
             messageLog[_contractId].push(string(abi.encodePacked('Payee', ': ', _message)));
         }
 
-        emit MessageSent(_contractId, msg.sender);
+        emit MessageSent(_contractId, msg.sender, _message);
         
     }
 
