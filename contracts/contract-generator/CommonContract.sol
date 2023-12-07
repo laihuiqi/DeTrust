@@ -201,7 +201,6 @@ contract CommonContract {
         require(address(this).balance == 0, "Contract balance is not withdrawn yet!");
 
         details.base.completeContract(details.contractId);
-
         emit ContractEnded(address(this), details.contractId, msg.sender);
         
     }

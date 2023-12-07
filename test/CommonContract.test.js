@@ -27,7 +27,7 @@ describe("CommonContract", async () => {
 
         deTrustToken = await ethers.deployContract("DeTrustToken", [1000000000000000]);
         deTrustTokenAddress = await deTrustToken.getAddress();
-
+      
         baseContract = await ethers.deployContract("BaseContract", 
             [trustScoreAddress, deTrustTokenAddress]);
         baseContractAddress = await baseContract.getAddress();
@@ -48,7 +48,7 @@ describe("CommonContract", async () => {
         await trustScore.connect(owner).setTrustScore(user2Address, 450);
 
         await deTrustToken.connect(user1).approve(baseContractAddress, 20);
-        await deTrustToken.connect(user2).approve(baseContractAddress, 20);  
+        await deTrustToken.connect(user2).approve(baseContractAddress, 20); 
 
         const commonInput =
             [baseContractAddress, [user1Address, user3Address], 
@@ -92,7 +92,7 @@ describe("CommonContract", async () => {
 
         await expect(commonContract.connect(user2).verifyObligationDone(0))
             .to.be.revertedWith("Obligation is not done yet!");
-
+      
         const initBalance = await ethers.provider.getBalance(commonContractAddress);
 
         const initContractState = await commonContract.checkContractState();
@@ -110,7 +110,7 @@ describe("CommonContract", async () => {
         const contractState1 = await commonContract.checkContractState();
         expect(contractState1[0]).to.equal(false);
         expect(contractState1[1]).to.equal(false);
-
+      
         await expect(commonContract.connect(user3).resolveObligation(0, { value: 10000000000 }))
             .to.be.revertedWith("This obligation has been done!");
 
@@ -183,7 +183,7 @@ describe("CommonContract", async () => {
     it ("Should be able to complete contract", async () => {
         await expect(commonContract.connect(owner).endContract())
             .to.be.revertedWith("You are not involved in this contract!");
-
+      
         const complete = await commonContract.connect(user1).endContract();
         expect(complete)
         .to.emit(commonContract, "ContractEnded").withArgs(commonContractAddress, 1, user1Address)
@@ -298,6 +298,6 @@ describe("CommonContract", async () => {
             .to.be.revertedWith("Total obligations does not match obligation descriptions!");
 
         await expect(CommonContract.connect(user2).deploy(newCommonInput3))
-            .to.be.revertedWith("Total obligations does not match payment amounts!");
+            .to.be.revertedWith("Total obligations does not match payment amounts!"
     });
 });

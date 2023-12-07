@@ -34,7 +34,6 @@ describe("CommunicationChannel", async () => {
         await deTrustToken.connect(owner).setApproval(baseContractAddress);
         await trustScore.connect(owner).approveAddress(baseContractAddress);
         await baseContract.connect(owner).setApproval(communicationChannelAddress);
-
     });
 
     it("Should be able to send message", async () => {
@@ -67,7 +66,7 @@ describe("CommunicationChannel", async () => {
             .to.emit(communicationChannel, "MessageSent").withArgs(1, user2Address, "Hi");
 
         await expect(communicationChannel.connect(a2).sendMessage(1, "Hello"))
-            .to.be.revertedWith("You are not involved in the contract!");
+            .to.be.revertedWith("You are not involved in the contract!")
     });
 
     it ("Should be able to retrieve messages", async () => {

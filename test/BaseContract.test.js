@@ -23,7 +23,7 @@ describe("BaseContract", async () => {
         user4Address = await user4.getAddress();
         user5Address = await user5.getAddress();
         user6Address = await user6.getAddress();
-
+      
         trustScore = await ethers.deployContract("TrustScore", [200]);
         trustScoreAddress = await trustScore.getAddress();
 
@@ -235,7 +235,7 @@ describe("BaseContract", async () => {
         const generalRepo2 = await baseContract.getGeneralRepo(3);
         expect(generalRepo2[1]).to.equal(4);
         expect(generalRepo2[10]).to.equal(true);
-
+      
         const active = await baseContract.isActive(3);
         expect(active).to.equal(false);
 
@@ -395,6 +395,5 @@ describe("BaseContract", async () => {
 
         const getId = await baseContract.connect(user4).getIdRepo(contractAddr);
         expect(getId).to.equal(1);
-
     });
 });

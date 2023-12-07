@@ -82,6 +82,7 @@ describe("VotingMechanism", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(1, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(1);
+
     });
 
     it ("Should be able to vote a contract", async () => {
@@ -128,6 +129,7 @@ describe("VotingMechanism", async () => {
         expect(finalTokenBalance6).to.equal(610);
         expect(finalTokenBalance7).to.equal(610);
         expect(finalTokenBalanceBase).to.equal(450);
+
     });
 
     it ("Should be able to resolve verification result", async () => {
