@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");    
 const web3 = require("web3");
+const bytes32 = require("bytes32");
 
 describe("BaseContract", async () => {
 
@@ -75,7 +76,7 @@ describe("BaseContract", async () => {
             creationTime, 
             0, 
             0, 
-            [user1Address, string1, user2Address, string2, 1],
+            [user1Address, string1, user2Address, bytes32(0), 1],
             0,
             8,
             0,

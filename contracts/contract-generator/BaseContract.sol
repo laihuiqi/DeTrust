@@ -216,6 +216,7 @@ contract BaseContract {
     function setVotingAccess(address _votingContract) public ownerOnly {
         approved[_votingContract] = 1;
         voting = _votingContract;
+        deTrustToken.approve(_votingContract, 500);
         emit SetVotingMechanism(_votingContract);
     }
 

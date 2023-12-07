@@ -47,7 +47,8 @@ contract CommonContract {
     event ContractCreated(address indexed _contract, uint256 indexed _contractId);
     event ObligationDone(uint256 indexed _obligationId);
     event ObligationVerified(uint256 indexed _obligationId);
-    event ContractEnded(address indexed _contract, uint256 indexed _contractId);
+    event ContractEnded(address indexed _contract, uint256 indexed _contractId, address sender);
+    event InitiatorWithdrawn(uint256 _totalBalance);
 
     modifier contractReady() {
         require(details.base.isContractReady(details.contractId), "Contract is not ready!");
@@ -187,7 +188,9 @@ contract CommonContract {
 
     function initiatorWithdraw() external initiatorOnly contractCompleted active {
         require(address(this).balance > 0, "No balance to withdraw!");
-        details.initiator.transfer(address(this).balance);
+        uint256 totalBalance = address(this).balance;
+        details.initiator.transfer(totalBalance);
+        emit InitiatorWithdrawn(totalBalance);
     }
 
     // end contract and destruct the contract instance
@@ -202,7 +205,7 @@ contract CommonContract {
 
         inactive = true;
 
-        emit ContractEnded(address(this), details.contractId);
+        emit ContractEnded(address(this), details.contractId, msg.sender);
         
     }
 

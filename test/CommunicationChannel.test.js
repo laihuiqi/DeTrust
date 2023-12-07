@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");    
 const web3 = require("web3");
 
-describe("BaseContract", async () => {
+describe("CommunicationChannel", async () => {
 
     let ownerAddress, user1Address, user2Address;
     let baseContractAddress, communicationChannelAddress, trustScoreAddress, deTrustTokenAddress;
