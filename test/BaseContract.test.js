@@ -56,7 +56,7 @@ describe("BaseContract", async () => {
 
         await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
 
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
@@ -148,7 +148,7 @@ describe("BaseContract", async () => {
     });
 
     it("Should be able to proceed verified contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
@@ -196,7 +196,7 @@ describe("BaseContract", async () => {
     });
 
     it("Should be able to complete contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
@@ -246,7 +246,7 @@ describe("BaseContract", async () => {
     });
 
     it ("Should be able to void contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
@@ -279,7 +279,7 @@ describe("BaseContract", async () => {
     });
 
     it ("Should be able to record dispute on contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [

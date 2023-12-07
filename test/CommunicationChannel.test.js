@@ -37,7 +37,7 @@ describe("CommunicationChannel", async () => {
     });
 
     it("Should be able to send message", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
@@ -70,7 +70,7 @@ describe("CommunicationChannel", async () => {
     });
 
     it ("Should be able to retrieve messages", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
@@ -143,7 +143,7 @@ describe("CommunicationChannel", async () => {
     });
 
     it ("Messaging on inactivate contract should be freeze", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 

@@ -52,7 +52,7 @@ describe("SigningMechanism", async () => {
     });
 
     it ("Should be able to sign contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const initSignature = bytes32(0);
         const validProperties1 = [
             1, 
@@ -105,7 +105,7 @@ describe("SigningMechanism", async () => {
     });
 
     it ("Should be able to verify signature", async () => { 
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
 
         const hash1 = await signingMechanism.connect(user1).getMessageHash(
             user1Address, 2, 12345, 2, web3.utils.fromAscii('0xff'), web3.utils.fromAscii('0x11'));
@@ -137,7 +137,7 @@ describe("SigningMechanism", async () => {
     });
 
     it ("Should not sign an inactive contract", async () => {
-        const creationTime = Date.now() - 36000;
+        const creationTime = Math.floor(Date.now() / 1000) - 600;
         const hash1 = await signingMechanism.connect(user1).getMessageHash(
             user1Address, 2, 12345, 2, web3.utils.fromAscii('0xff'), web3.utils.fromAscii('0x11'));
         const hash2 = await signingMechanism.connect(user2).getMessageHash(
