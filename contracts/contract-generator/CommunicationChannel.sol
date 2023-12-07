@@ -44,7 +44,7 @@ contract CommunicationChannel {
     }
 
     // get all messages in the message log for a certain contract by invlovers only
-    function retriveMessage(uint256 _contractId) public view 
+    function retrieveMessage(uint256 _contractId) public view 
         onlyInvolved(_contractId) returns (string memory) {
         string memory messages = "";
 

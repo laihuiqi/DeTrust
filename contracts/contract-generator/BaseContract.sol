@@ -24,13 +24,6 @@ contract BaseContract {
 
     uint256 counter = 0;
 
-    constructor(TrustScore _trustScore, DeTrustToken _deTrustToken) {
-        owner = payable(address(msg.sender));
-        approved[owner] == 1;
-        trustScore = _trustScore;
-        deTrustToken = _deTrustToken;
-    }
-
     mapping(address => uint256) public addressToIdRepo;
     mapping(uint256 => address) public idToAddressRepo;
     mapping(uint256 => ContractUtility.BasicProperties) public generalRepo;
@@ -49,6 +42,13 @@ contract BaseContract {
     event PropertiesRecorded(uint256 _contractId);
     event WalletSet(address _user);
     event BaseOwnerWithdrawn();
+
+    constructor(TrustScore _trustScore, DeTrustToken _deTrustToken) {
+        owner = payable(address(msg.sender));
+        approved[owner] = 1;
+        trustScore = _trustScore;
+        deTrustToken = _deTrustToken;
+    }
 
     modifier ownerOnly() {
         require(msg.sender == owner, "Your are not the owner!");
@@ -216,6 +216,7 @@ contract BaseContract {
     function setVotingAccess(address _votingContract) public ownerOnly {
         approved[_votingContract] = 1;
         voting = _votingContract;
+        deTrustToken.approve(_votingContract, 500);
         emit SetVotingMechanism(_votingContract);
     }
 
@@ -243,6 +244,11 @@ contract BaseContract {
 
     function getWalletAddress(address _user) public view approvedOnly returns (address) {
         return walletMapping[_user];
+    }
+
+    function getDisputeContract(uint256 _contractId) public view 
+        approvedOrInvolved(_contractId) returns (address) {
+        return address(disputeRepo[_contractId]);
     }
 
     function ownerWithdraw() external ownerOnly {
