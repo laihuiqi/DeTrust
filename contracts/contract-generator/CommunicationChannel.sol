@@ -22,7 +22,7 @@ contract CommunicationChannel {
 
     modifier onlyInvolved(uint256 _contractId) {
         require(base.isInvolved(_contractId, msg.sender), 
-            "You are not invloved in the contract!");
+            "You are not involved in the contract!");
         _;
     }
 

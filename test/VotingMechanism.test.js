@@ -8,8 +8,6 @@ describe("VotingMechanism", async () => {
     let trustScoreAddress, deTrustTokenAddress, baseContractAddress, votingMechanismAddress, contractAddr;
     let trustScore, deTrustToken, baseContract, votingMechanism;
     let owner, user1, user2, user3, user4, user5, user6, user7, a1, a2, a3, a4, a5;
-
-    let contractInput;
     
     before(async () => {
 
@@ -24,27 +22,19 @@ describe("VotingMechanism", async () => {
         user6Address = await user6.getAddress();
         user7Address = await user7.getAddress();
 
-        console.log("Initiated hardhat network accounts!");
-
         trustScore = await ethers.deployContract("TrustScore", [200]);
         trustScoreAddress = await trustScore.getAddress();
-        console.log("Deployed TrustScore contract: ", trustScoreAddress);
 
         deTrustToken = await ethers.deployContract("DeTrustToken", [1000000000000000]);
         deTrustTokenAddress = await deTrustToken.getAddress();
-        console.log("Deployed DeTrustToken contract: ", deTrustTokenAddress);
 
         baseContract = await ethers.deployContract("BaseContract", 
             [trustScoreAddress, deTrustTokenAddress]);
         baseContractAddress = await baseContract.getAddress();
-        console.log("Deployed BaseContract contract: ", baseContractAddress);
 
         votingMechanism = await ethers.deployContract("VotingMechanism",
             [baseContractAddress, deTrustTokenAddress, trustScoreAddress]);
         votingMechanismAddress = await votingMechanism.getAddress();
-        console.log("Deployed VotingMechanism contract: ", votingMechanismAddress);
-
-        console.log("Completed deployment of backbone contracts!");
 
         contractAddr = await a1.getAddress();
         contractInput = [contractAddr, 0, 0, user1Address, user2Address, user1Address, user2Address];
@@ -73,8 +63,6 @@ describe("VotingMechanism", async () => {
 
         await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
 
-        console.log("Completed init account settings!");
-
         const creationTime = Math.floor(Date.now() / 1000);
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
@@ -94,7 +82,6 @@ describe("VotingMechanism", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(1, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(1);
-        console.log("Successfully set properties for default contract id 1");
     });
 
     it ("Should be able to vote a contract", async () => {
@@ -123,7 +110,6 @@ describe("VotingMechanism", async () => {
         expect(vote5)
         .to.emit(votingMechanism, "VerifiedContract").withArgs(1, user7Address, 1)
         .and.to.emit(votingMechanism, "PassedVerification").withArgs(1);
-        console.log("\n\nSuccessfully verified contract 1");
 
         const generalRepo = await baseContract.getGeneralRepo(1);
         expect(generalRepo[6]).to.equal(0);
@@ -142,7 +128,6 @@ describe("VotingMechanism", async () => {
         expect(finalTokenBalance6).to.equal(610);
         expect(finalTokenBalance7).to.equal(610);
         expect(finalTokenBalanceBase).to.equal(450);
-        console.log("Successfully updated general repo after verification: contract 1");
     });
 
     it ("Should be able to resolve verification result", async () => {
@@ -172,6 +157,5 @@ describe("VotingMechanism", async () => {
         expect(finalTrustScore1).to.equal(450);
         expect(finalTrustScore2).to.equal(450);
         expect(finalTrustScore5).to.equal(449);
-        console.log("\n\nSuccessfully resolved verification for contract 1");
     });
 });
