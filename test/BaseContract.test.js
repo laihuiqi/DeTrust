@@ -23,28 +23,20 @@ describe("BaseContract", async () => {
         user4Address = await user4.getAddress();
         user5Address = await user5.getAddress();
         user6Address = await user6.getAddress();
-
-        console.log("Initiated hardhat network accounts!");
-
+      
         trustScore = await ethers.deployContract("TrustScore", [200]);
         trustScoreAddress = await trustScore.getAddress();
-        console.log("Deployed TrustScore contract: ", trustScoreAddress);
 
         deTrustToken = await ethers.deployContract("DeTrustToken", [1000000000000000]);
         deTrustTokenAddress = await deTrustToken.getAddress();
-        console.log("Deployed DeTrustToken contract: ", deTrustTokenAddress);
 
         baseContract = await ethers.deployContract("BaseContract", 
             [trustScoreAddress, deTrustTokenAddress]);
         baseContractAddress = await baseContract.getAddress();
-        console.log("Deployed BaseContract contract: ", baseContractAddress);
 
         votingMechanism = await ethers.deployContract("VotingMechanism",
             [baseContractAddress, deTrustTokenAddress, trustScoreAddress]);
         votingMechanismAddress = await votingMechanism.getAddress();
-        console.log("Deployed VotingMechanism contract: ", votingMechanismAddress);
-
-        console.log("Completed deployment of backbone contracts!");
 
         contractAddr = await a1.getAddress();
         contractInput = [contractAddr, 0, 0, user1Address, user2Address, user1Address, user2Address];
@@ -63,8 +55,6 @@ describe("BaseContract", async () => {
         await trustScore.connect(owner).approveAddress(votingMechanismAddress);
 
         await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
-
-        console.log("Completed init account settings!");
 
         const creationTime = Date.now() - 36000;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
@@ -98,11 +88,9 @@ describe("BaseContract", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(6, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(6);
-        console.log("Successfully set properties for default contract id 6");
 
         const setProperties2 = await baseContract.setGeneralRepo(7, validProperties2);
         expect(setProperties2).to.emit(baseContract, "PropertiesRecorded").withArgs(7);
-        console.log("Successfully set properties for default contract id 7");
     });
 
     it("Should be able to record a new contract", async () => {
@@ -112,7 +100,6 @@ describe("BaseContract", async () => {
         expect(initTokenBalance1).to.equal(1000);
         expect(initTokenBalance2).to.equal(1000);
         expect(initTokenBalance3).to.equal(0);
-        console.log("\n\nSuccessfully checked init token balance for user 1, user 2 and base contract");
 
         const logContract = await baseContract.addToContractRepo(contractInput);
         expect(logContract).to.emit(baseContract, "ContractLogged").withArgs(contractAddr, 1);
@@ -123,7 +110,6 @@ describe("BaseContract", async () => {
         expect(finalTokenBalance1).to.equal(980);
         expect(finalTokenBalance2).to.equal(980);
         expect(finalTokenBalance3).to.equal(40);
-        console.log("Successfully checked final token balance for user 1, user 2 and base contract");
         
         const generalRepo = await baseContract.getGeneralRepo(1);
         expect(generalRepo[0]).to.equal(1); // counter
@@ -147,7 +133,18 @@ describe("BaseContract", async () => {
 
         const walletAddress2 = await baseContract.getWalletAddress(user2Address);
         expect(walletAddress2).to.equal(user2Address);
-        console.log("Successfully recorded contract 1");
+
+        const active = await baseContract.isActive(1);
+        expect(active).to.equal(true);
+
+        const involvedOwner = await baseContract.isInvolved(1, owner);
+        expect(involvedOwner).to.equal(false);
+
+        const involvedUser1 = await baseContract.isInvolved(1, user1);
+        expect(involvedUser1).to.equal(true);
+
+        const involvedUser2 = await baseContract.isInvolved(1, user2);
+        expect(involvedUser2).to.equal(true);
     });
 
     it("Should be able to proceed verified contract", async () => {
@@ -169,7 +166,6 @@ describe("BaseContract", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(2, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
-        console.log("\n\nSuccessfully set properties for contract 2");
 
         const checkGeneralRepo = await baseContract.getGeneralRepo(2);
         expect(checkGeneralRepo[0]).to.equal(2); // counter
@@ -187,16 +183,16 @@ describe("BaseContract", async () => {
         expect(checkGeneralRepo[8]).to.equal(5);
         expect(checkGeneralRepo[9]).to.equal(1);
         expect(checkGeneralRepo[10]).to.equal(false);
-        console.log("Successfully checked init properties for contract 2");
+
+        await expect(baseContract.connect(user3).proceedContract(2))
+            .to.be.revertedWith("You are not authorized to execute this function!");
 
         const proceedContract = await baseContract.connect(user1).proceedContract(2);
         expect(proceedContract).to.emit(baseContract, "ContractProceeded").withArgs(2);
-        console.log("Successfully proceeded contract 2 by user 1");
 
         const generalRepo = await baseContract.getGeneralRepo(2);
         expect(generalRepo[0]).to.equal(2); // counter
         expect(generalRepo[1]).to.equal(2); // In progress
-        console.log("Successfully checked updated properties for contract 2");
     });
 
     it("Should be able to complete contract", async () => {
@@ -218,36 +214,35 @@ describe("BaseContract", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(3, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(3);
-        console.log("\n\nSuccessfully set properties for contract 3");
 
         const initTrustScore1 = await trustScore.getTrustScore(user1Address);
         const initTrustScore2 = await trustScore.getTrustScore(user2Address);
         expect(initTrustScore1).to.equal(450);
         expect(initTrustScore2).to.equal(450);
-        console.log("Successfully checked init trust score for user 1 and user 2");
+
+        await expect(baseContract.connect(user3).completeContract(2))
+            .to.be.revertedWith("You are not authorized to execute this function!");
 
         const completeContract = await baseContract.connect(user1).completeContract(3);
         expect(completeContract).to.emit(baseContract, "ContractPendingComplete").withArgs(3);
-        console.log("Contract 3 is pending complete by user 1");
 
         const generalRepo = await baseContract.getGeneralRepo(3);
         expect(generalRepo[10]).to.equal(true); 
-        console.log("Successfully checked updated properties for contract 3 on pending complete");
 
         const completeContract2 = await baseContract.connect(user2).completeContract(3);
         expect(completeContract2).to.emit(baseContract, "ContractCompleted").withArgs(3);
-        console.log("Contract 3 is completed by user 2");
 
         const generalRepo2 = await baseContract.getGeneralRepo(3);
         expect(generalRepo2[1]).to.equal(4);
         expect(generalRepo2[10]).to.equal(true);
-        console.log("Successfully checked updated properties for contract 3 on completed");
+      
+        const active = await baseContract.isActive(3);
+        expect(active).to.equal(false);
 
         const finalTrustScore1 = await trustScore.getTrustScore(user1Address);
         const finalTrustScore2 = await trustScore.getTrustScore(user2Address);
         expect(finalTrustScore1).to.equal(451);
         expect(finalTrustScore2).to.equal(451);
-        console.log("Successfully checked final trust score for user 1 and user 2");
     });
 
     it ("Should be able to void contract", async () => {
@@ -269,15 +264,18 @@ describe("BaseContract", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(4, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(4);
-        console.log("\n\nSuccessfully set properties for contract 4");
+
+        await expect(baseContract.connect(user3).voidContract(4))
+            .to.be.revertedWith("You are not authorized to execute this function!");
 
         const voidContract = await baseContract.connect(user1).voidContract(4);
         expect(voidContract).to.emit(baseContract, "ContractVoided").withArgs(4);
-        console.log("Contract 4 is voided by user 1");
 
         const generalRepo = await baseContract.getGeneralRepo(4);
         expect(generalRepo[1]).to.equal(5);
-        console.log("Successfully checked updated properties for contract 4 on voided");
+
+        const active = await baseContract.isActive(4);
+        expect(active).to.equal(false);
     });
 
     it ("Should be able to record dispute on contract", async () => {
@@ -299,14 +297,15 @@ describe("BaseContract", async () => {
 
         const setProperties = await baseContract.setGeneralRepo(5, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(5);
-        console.log("\n\nSuccessfully set properties for contract 5");
 
         const disputeContractAddress = await a2.getAddress();
-        console.log("Deployed DeTrustToken contract: ", deTrustTokenAddress);
+
+        await expect(baseContract.connect(owner).disputeContract(5, disputeContractAddress, 1))
+            .to.be.revertedWith("You are not involved in this contract!");
+
         const disputeContract = await baseContract.connect(user1)
             .disputeContract(5, disputeContractAddress, 1);
         expect(disputeContract).to.emit(baseContract, "ContractDisputeRecorded").withArgs(5);
-        console.log("Contract 5 is disputed by user 1");
 
         const generalRepo = await baseContract.getGeneralRepo(5);
         expect(generalRepo[1]).to.equal(3);
@@ -314,26 +313,87 @@ describe("BaseContract", async () => {
 
         const disputeRepo = await baseContract.getDisputeContract(5);
         expect(disputeRepo).to.equal(disputeContractAddress);
-        console.log("Successfully checked updated properties for contract 5 on disputed");
     });
 
     it ("Should be able to check if contract is inprogress", async () => {
         const checkInProgress = await baseContract.isContractReady(6);
         expect(checkInProgress).to.equal(false);
-        console.log("\n\nSuccessfully checked contract 6 is not in progress");
 
         const checkInProgress2 = await baseContract.isContractReady(7);
         expect(checkInProgress2).to.equal(true);
-        console.log("Successfully checked contract 7 is in progress");
     });
 
     it ("Should be able to check if contract is signed", async () => {
         await expect(baseContract.connect(user1)
             .isSigned(6)).to.be.revertedWith("Contract is not signed by both parties!");
-        console.log("\n\nSuccessfully checked contract 6 is not signed");
 
         const checkSigned2 = await baseContract.isSigned(7);
         expect(checkSigned2).to.equal(true);
-        console.log("Successfully checked contract 7 is signed");
+    });
+
+    it ("Setter check", async () => {
+        const basicProperties = [
+            8, 
+            0, 
+            Math.floor(Date.now() / 1000), 
+            0, 
+            0, 
+            [user1Address, bytes32(0), user2Address, bytes32(0), 0],
+            0,
+            8,
+            0,
+            0,
+            false];
+
+        await expect(baseContract.connect(user1).setGeneralRepo(8, basicProperties))
+            .to.be.revertedWith("You are not approved to execute this function!");
+
+        const setProperties = await baseContract.connect(owner).setGeneralRepo(8, basicProperties);
+        expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(8);
+
+        await expect(baseContract.connect(user1).setWalletMapping(user1Address, user2Address))
+            .to.be.revertedWith("You are not approved to execute this function!");
+
+        const setWalletMapping = await baseContract.connect(owner).setWalletMapping(user1Address, user2Address);
+        expect(setWalletMapping).to.emit(baseContract, "WalletSet").withArgs(user1Address);
+
+        await expect(baseContract.connect(user1).setApproval(baseContractAddress))
+            .to.be.revertedWith("You are not the owner!");
+        
+        const setApproval = await baseContract.connect(owner).setApproval(baseContractAddress);
+        expect(setApproval).to.emit(baseContract, "SetApprovalToBase").withArgs(baseContractAddress);
+
+        await expect(baseContract.connect(user1).setVotingAccess(votingMechanismAddress))
+            .to.be.revertedWith("You are not the owner!");
+        
+        const setVotingAccess = await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
+        expect(setVotingAccess).to.emit(baseContract, "SetVotingMechanism").withArgs(votingMechanismAddress);
+
+    });
+
+    it ("Getter check", async () => {
+        await expect(baseContract.connect(user1).getGeneralRepo(8))
+            .to.be.revertedWith("You are not approved to execute this function!");
+
+        const getGeneralRepo = await baseContract.getGeneralRepo(1);
+        expect(getGeneralRepo[0]).to.equal(1);
+
+        await expect(baseContract.connect(user1).getWalletAddress(user2Address))
+            .to.be.revertedWith("You are not approved to execute this function!");
+
+        const getWalletAddress = await baseContract.connect(owner).getWalletAddress(user2Address);
+        expect(getWalletAddress).to.equal(user2Address);
+
+        await expect(baseContract.connect(user3).getDisputeContract(5))
+            .to.be.revertedWith("You are not authorized to execute this function!");
+
+        const getDisputeContract = await baseContract.connect(user1).getDisputeContract(5);
+        expect(getDisputeContract).to.equal(await a2.getAddress());
+
+        const getAddress = await baseContract.connect(user3).getAddressRepo(1);
+        expect(getAddress).to.equal(contractAddr);
+
+        const getId = await baseContract.connect(user4).getIdRepo(contractAddr);
+        expect(getId).to.equal(1);
     });
 });

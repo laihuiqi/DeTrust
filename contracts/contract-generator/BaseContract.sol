@@ -51,7 +51,7 @@ contract BaseContract {
     }
 
     modifier ownerOnly() {
-        require(msg.sender == owner, "Your are not the owner!");
+        require(msg.sender == owner, "You are not the owner!");
         _;
     }
 
@@ -72,8 +72,11 @@ contract BaseContract {
         _;
     }
 
-    function isActive(uint256 _contractId) public view notFreeze(_contractId) returns (bool) {
-        return true;
+    function isActive(uint256 _contractId) public view returns (bool) {
+        bool active = generalRepo[_contractId].state != ContractUtility.ContractState.DISPUTED &&
+            generalRepo[_contractId].state != ContractUtility.ContractState.COMPLETED &&
+            generalRepo[_contractId].state != ContractUtility.ContractState.VOIDED;
+        return active;
     }
 
     // modifier to check if correct price is paid on contract payment
@@ -102,8 +105,12 @@ contract BaseContract {
         _;
     }
 
-    function isInvolved(uint256 _contractId, address _sender) public view onlyInvolved(_contractId, _sender) returns (bool) {
-        return true;
+    function isInvolved(uint256 _contractId, address _sender) public view returns (bool) {
+        bool involved = _sender == generalRepo[_contractId].signature.payer ||
+            _sender == generalRepo[_contractId].signature.payee ||
+            _sender == idToAddressRepo[_contractId];
+
+        return involved;
     }
 
     // contract history functions
