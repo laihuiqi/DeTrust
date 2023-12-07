@@ -1,0 +1,159 @@
+const { expect } = require("chai");
+const { ethers } = require("hardhat");    
+const web3 = require("web3");
+
+describe("BaseContract", async () => {
+
+    let ownerAddress, user1Address, user2Address;
+    let baseContractAddress, communicationChannelAddress, trustScoreAddress, deTrustTokenAddress;
+    let baseContract, communicationChannel, trustScore, deTrustToken;
+    let owner, user1, user2, a1, a2, a3, a4, a5;
+
+    let contractInput;
+    
+    before(async () => {
+
+        [owner, user1, user2, a1, a2, a3, a4, a5] = await ethers.getSigners();
+
+        ownerAddress = await owner.getAddress();
+        user1Address = await user1.getAddress();
+        user2Address = await user2.getAddress();
+
+        console.log("Initiated hardhat network accounts!");
+
+        trustScore = await ethers.deployContract("TrustScore", [200]);
+        trustScoreAddress = await trustScore.getAddress();
+        console.log("Deployed TrustScore contract: ", trustScoreAddress);
+
+        deTrustToken = await ethers.deployContract("DeTrustToken", [1000000000000000]);
+        deTrustTokenAddress = await deTrustToken.getAddress();
+        console.log("Deployed DeTrustToken contract: ", deTrustTokenAddress);
+
+        baseContract = await ethers.deployContract("BaseContract", 
+            [trustScoreAddress, deTrustTokenAddress]);
+        baseContractAddress = await baseContract.getAddress();
+        console.log("Deployed BaseContract contract: ", baseContractAddress);
+
+        console.log("Completed deployment of backbone contracts!");
+
+        communicationChannel = await ethers.deployContract("CommunicationChannel",
+            [baseContractAddress]);
+        communicationChannelAddress = await communicationChannel.getAddress();
+        console.log("Deployed CommunicationChannel contract: ", communicationChannelAddress);
+
+        await deTrustToken.connect(owner).setApproval(baseContractAddress);
+        await trustScore.connect(owner).approveAddress(baseContractAddress);
+        await baseContract.connect(owner).setApproval(communicationChannelAddress);
+
+        console.log("Completed init account settings!");
+
+    });
+
+    it("Should be able to send message", async () => {
+        const creationTime = Date.now() - 36000;
+        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
+        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
+
+        const validProperties1 = [
+            1, 
+            2, 
+            creationTime, 
+            0, 
+            0, 
+            [user1Address, string1, user2Address, string2, 2],
+            1,
+            8,
+            4,
+            0,
+            false];
+
+        const setProperties = await baseContract.setGeneralRepo(1, validProperties1);
+        expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(1);
+        console.log("\n\nSuccessfully set properties for default contract id 1");
+        
+        const sendMessage = await communicationChannel.connect(user1).sendMessage(1, "Hello");
+        expect(sendMessage)
+            .to.emit(communicationChannel, "MessageSent").withArgs(1, user1Address, "Hello");
+
+        const sendMessage2 = await communicationChannel.connect(user2).sendMessage(1, "Hi");
+        expect(sendMessage2)
+            .to.emit(communicationChannel, "MessageSent").withArgs(1, user2Address, "Hi");
+    
+        console.log("Successfully sent messages!");
+    });
+
+    it ("Should be able to retrieve messages", async () => {
+        const creationTime = Date.now() - 36000;
+        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
+        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
+
+        const validProperties1 = [
+            2, 
+            2, 
+            creationTime, 
+            0, 
+            0, 
+            [user1Address, string1, user2Address, string2, 2],
+            1,
+            8,
+            4,
+            0,
+            false];
+
+        const setProperties = await baseContract.setGeneralRepo(2, validProperties1);
+        expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
+        console.log("\n\nSuccessfully set properties for default contract id 2");
+
+        const sendMessage = await communicationChannel
+            .connect(user1).sendMessage(2, "Hello. We can start our contract discussion.");
+        expect(sendMessage).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user1Address, "Hello. We can start our contract discussion.");
+        const sendMessage2 = await communicationChannel
+            .connect(user2).sendMessage(2, "Hi. I am ready to start.");
+        expect(sendMessage2).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user2Address, "Hi. I am ready to start.");
+        const sendMessage3 = await communicationChannel
+            .connect(user1).sendMessage(2, "Great. What is your preferred paid?");
+        expect(sendMessage3).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user1Address, "Great. What is your preferred paid?");
+        const sendMessage4 = await communicationChannel
+            .connect(user2).sendMessage(2, "I am thinking of 10 ETH.");
+        expect(sendMessage4).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user2Address, "I am thinking of 10 ETH.");
+        const sendMessage5 = await communicationChannel
+            .connect(user1).sendMessage(2, "That is too much. I can only afford 5 ETH.");
+        expect(sendMessage5).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user1Address, "That is too much. I can only afford 5 ETH.");
+        const sendMessage6 = await communicationChannel
+            .connect(user2).sendMessage(2, "I can only go down to 8 ETH.");
+        expect(sendMessage6).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user2Address, "I can only go down to 8 ETH.");
+        const sendMessage7 = await communicationChannel
+            .connect(user1).sendMessage(2, "Deal! Let's start.");
+        expect(sendMessage7).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user1Address, "Deal! Let's start.");
+        const sendMessage8 = await communicationChannel
+            .connect(user2).sendMessage(2, "Great!");
+        expect(sendMessage8).to.emit(communicationChannel, "MessageSent")
+            .withArgs(2, user2Address, "Great!");
+
+        console.log("Successfully sent messages!");
+
+        const expectedMessages = 
+            "Payer: Hello. We can start our contract discussion.\n"
+            + "Payee: Hi. I am ready to start.\n"
+            + "Payer: Great. What is your preferred paid?\n"
+            + "Payee: I am thinking of 10 ETH.\n"
+            + "Payer: That is too much. I can only afford 5 ETH.\n"
+            + "Payee: I can only go down to 8 ETH.\n"
+            + "Payer: Deal! Let's start.\n"
+            + "Payee: Great!\n"
+        ;
+        const messages = await communicationChannel.connect(user1).retrieveMessage(2);
+        const messages2 = await communicationChannel.connect(user2).retrieveMessage(2);
+        expect(messages).to.equal(expectedMessages);
+        expect(messages2).to.equal(messages);
+            
+        console.log("Successfully retrieved messages!");
+    });
+});

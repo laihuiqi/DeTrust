@@ -51,6 +51,7 @@ contract SigningMechanism {
             require(properties.signature._ad2 == bytes32(0), 
                 "You have already signed this contract!");
             properties.signature._ad2 = messageHash;
+            properties.state = ContractUtility.ContractState.SIGNED;
         }
 
         properties.signature.isSigned = properties.signature.isSigned + 1;
