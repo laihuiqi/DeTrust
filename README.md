@@ -6,6 +6,32 @@ transparency, and community consensus, DeTrust empowers users to interact with
 confidence, assured that their agreements are backed by a robust and impartial
 framework.
 
+## Contracts Implementation
+
+### Main Contracts
+`Accounts.sol` - user management
+
+`DeTrustToken.sol` - token management, token used for contract creation
+
+`TrustScore.sol` - a measure to reflect a user's reliability
+
+`BaseContract.sol` - central repo to track created contract
+
+`Dispute.sol` - current v1, dispute generator 
+
+`CommunicationChannel.sol` - for contract specific communication
+
+`SigningMechanism.sol` - sign contract and validate signature
+
+`VotingMechanism.sol` - govern contract verification logic
+
+`CommonContract.sol` - common contract template
+
+### Side Contracts
+Various contract templates.
+
+Available for next iteration service enhancement.
+
 ## Console Auto-Testing
 
 Tool: Code editor / terminal with hardhat, solidity, typescript and javascript support.
