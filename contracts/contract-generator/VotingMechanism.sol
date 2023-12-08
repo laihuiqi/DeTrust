@@ -42,17 +42,6 @@ contract VotingMechanism {
 
     // verification functions
 
-    /**
-     * @dev Modifier to check if the verification time limit is passed.
-     * @param _contractId The contract id to be verified.
-     * 
-     * Requirements:
-        * The contract must be not verified.
-        * The contract could be verified if the minimun verification time limit has not passed.
-        * The contract could be verified if the minimun verification time limit has passed 
-          and the verifier amount is not exceeded 
-          and the maximum verification time limit has not passed.
-     */
     modifier verifyAllowed(uint256 _contractId) {
 
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
@@ -61,41 +50,29 @@ contract VotingMechanism {
             "Contract is already verified!");
         
         unchecked {
-            require(block.timestamp - properties.creationTime <= verificationCutOffTime, 
+            require(block.timestamp - properties.verificationStart <= verificationCutOffTime, 
                 "Verification time is over!");
 
-            bool verifierExceeded = block.timestamp - properties.creationTime > minimumTimeFrame && 
+            bool verifierExceeded = block.timestamp - properties.verificationStart > minimumTimeFrame && 
                     properties.legitAmount.add(properties.fraudAmount) < properties.verifierNeeded;
 
-            require(block.timestamp - properties.creationTime <= minimumTimeFrame ||
+            require(block.timestamp - properties.verificationStart <= minimumTimeFrame ||
                 verifierExceeded, "Verifier amount exceeded!");
         }
         _;
     }
 
-    /**
-     * @dev Modifier to check if the verification could be resolved.
-     * 
-     * Requirements:
-        * The contract must be not verified.
-        * The contract could be verified if the minimun verification time limit has passed
-          and the verifier amount is reached or exceeded.
-        * The contract could be verified if the maximum verification time limit has passed.
-     */
     modifier verificationCanBeResolved(uint256 _contractId) {
-        /*
-
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
 
         require(properties.isVerified == ContractUtility.VerificationState.PENDING, 
             "Contract is not available for verification!");
 
-        require(block.timestamp - properties.creationTime > verificationCutOffTime ||
-            (block.timestamp - properties.creationTime > minimumTimeFrame &&
-            (properties.legitAmount.add(properties.fraudAmount) >= 
-                properties.verifierNeeded)), 
-            "Verification is not availble yet!");
-            */
+        require(block.timestamp - properties.verificationStart > verificationCutOffTime ||
+            (block.timestamp - properties.verificationStart > minimumTimeFrame &&
+            (properties.legitAmount >= properties.verifierNeeded / 2)), 
+            "Resolve is not available yet!");
+            
         _;
     }
 
@@ -158,7 +135,7 @@ contract VotingMechanism {
 
         emit ContractVerified(_contractId, msg.sender, _vstate);
 
-        if (block.timestamp - properties.creationTime > minimumTimeFrame) {
+        if (block.timestamp - properties.verificationStart > minimumTimeFrame) {
             if (properties.legitAmount >= properties.verifierNeeded / 2) {
                 properties.isVerified = ContractUtility.VerificationState.LEGITIMATE;
                 base.setGeneralRepo(_contractId, properties);
@@ -176,16 +153,6 @@ contract VotingMechanism {
         return ContractUtility.VerificationState.PENDING;
     }
 
-    /**
-     * @dev Resolve the verification of the contract.
-     * @param _contractId The contract id to be verified.
-     *
-     * Requirements:
-        * The true verifier will be rewarded with 10 DTRs.
-        * The false verifier will be deducted with 5 DTRs and 1 trust score.
-        * FRAUDULENT:
-            * The payer and the payee will be deducted with 500 DTRs and 2 trust scores.
-     */
     function resolveVerification(uint256 _contractId) public notFreeze(_contractId) 
         isSigned(_contractId) verificationCanBeResolved(_contractId) {
 

@@ -92,7 +92,7 @@ contract BaseContract {
         
         deTrustToken.transferFrom(_walletPayee, address(this), amountPayee);
         deTrustToken.transferFrom(_walletPayer, address(this), amountPayer);
-        deTrustToken.approve(voting, amountPayee.add(amountPayer));
+        deTrustToken.approve(voting, amountPayee.add(amountPayer).add(500));
         _;
     }
 
@@ -150,7 +150,8 @@ contract BaseContract {
                 + trustScore.getVerifierAmount(trustScore.getTrustTier(repoInput._payee)),
             0,
             0,
-            false
+            false,
+            0
         );
         
         emit ContractLogged(repoInput._contractAddress, counter);
@@ -223,7 +224,6 @@ contract BaseContract {
     function setVotingAccess(address _votingContract) public ownerOnly {
         approved[_votingContract] = 1;
         voting = _votingContract;
-        deTrustToken.approve(_votingContract, 500);
         emit SetVotingMechanism(_votingContract);
     }
 

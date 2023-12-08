@@ -10,7 +10,7 @@ describe("BaseContract", async () => {
     let trustScore, deTrustToken, baseContract, votingMechanism;
     let owner, user1, user2, user3, user4, user5, user6, a1, a2, a3, a4, a5;
 
-    let contractInput;
+    let contractInput, creationTime, verificationStart, string1, string2;
     
     before(async () => {
 
@@ -56,35 +56,18 @@ describe("BaseContract", async () => {
 
         await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
 
-        const creationTime = Date.now() - 36000;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
+        creationTime = Math.floor(Date.now() / 1000) - 9000;
+        verificationStart = Math.floor(Date.now() / 1000) - 6000;
+        string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
+        string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
         const validProperties1 = [
-            6, 
-            0, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, bytes32(0), 1],
-            0,
-            8,
-            0,
-            0,
-            false];
+            6, 0, creationTime, 0, 0, [user1Address, string1, user2Address, bytes32(0), 1],
+            0, 8, 0, 0, false, verificationStart];
 
         const validProperties2 = [
-            7, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            7, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(6, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(6);
@@ -148,21 +131,9 @@ describe("BaseContract", async () => {
     });
 
     it("Should be able to proceed verified contract", async () => {
-        const creationTime = Date.now() - 36000;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
-            2, 
-            1, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            5,
-            1,
-            false];
+            2, 1, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 5, 1, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(2, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
@@ -183,6 +154,7 @@ describe("BaseContract", async () => {
         expect(checkGeneralRepo[8]).to.equal(5);
         expect(checkGeneralRepo[9]).to.equal(1);
         expect(checkGeneralRepo[10]).to.equal(false);
+        expect(checkGeneralRepo[11]).to.equal(verificationStart);
 
         await expect(baseContract.connect(user3).proceedContract(2))
             .to.be.revertedWith("You are not authorized to execute this function!");
@@ -196,21 +168,9 @@ describe("BaseContract", async () => {
     });
 
     it("Should be able to complete contract", async () => {
-        const creationTime = Date.now() - 36000;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
-            3, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            3, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(3, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(3);
@@ -246,21 +206,9 @@ describe("BaseContract", async () => {
     });
 
     it ("Should be able to void contract", async () => {
-        const creationTime = Date.now() - 36000;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
-            4, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            4, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(4, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(4);
@@ -279,21 +227,9 @@ describe("BaseContract", async () => {
     });
 
     it ("Should be able to record dispute on contract", async () => {
-        const creationTime = Date.now() - 36000;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
         const validProperties = [
-            5, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            5, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(5, validProperties);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(5);
@@ -333,17 +269,8 @@ describe("BaseContract", async () => {
 
     it ("Setter check", async () => {
         const basicProperties = [
-            8, 
-            0, 
-            Math.floor(Date.now() / 1000), 
-            0, 
-            0, 
-            [user1Address, bytes32(0), user2Address, bytes32(0), 0],
-            0,
-            8,
-            0,
-            0,
-            false];
+            8, 0, creationTime, 0, 0, [user1Address, bytes32(0), user2Address, bytes32(0), 0],
+            0, 8, 0, 0, false, verificationStart];
 
         await expect(baseContract.connect(user1).setGeneralRepo(8, basicProperties))
             .to.be.revertedWith("You are not approved to execute this function!");

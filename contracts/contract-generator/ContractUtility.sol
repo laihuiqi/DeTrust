@@ -74,6 +74,7 @@ library ContractUtility {
         uint256 legitAmount;
         uint256 fraudAmount;
         bool completed;
+        uint256 verificationStart;
     }
 
     struct ContractRepoInput {
