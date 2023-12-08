@@ -298,6 +298,6 @@ describe("CommonContract", async () => {
             .to.be.revertedWith("Total obligations does not match obligation descriptions!");
 
         await expect(CommonContract.connect(user2).deploy(newCommonInput3))
-            .to.be.revertedWith("Total obligations does not match payment amounts!"
+            .to.be.revertedWith("Total obligations does not match payment amounts!");
     });
 });

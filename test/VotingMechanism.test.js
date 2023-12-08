@@ -36,9 +36,6 @@ describe("VotingMechanism", async () => {
             [baseContractAddress, deTrustTokenAddress, trustScoreAddress]);
         votingMechanismAddress = await votingMechanism.getAddress();
 
-        contractAddr = await a1.getAddress();
-        contractInput = [contractAddr, 0, 0, user1Address, user2Address, user1Address, user2Address];
-
         await trustScore.connect(owner).setTrustScore(user1Address, 450);
         await trustScore.connect(owner).setTrustScore(user2Address, 450);
         await trustScore.connect(owner).setTrustScore(user3Address, 450);   
@@ -47,8 +44,8 @@ describe("VotingMechanism", async () => {
         await trustScore.connect(owner).setTrustScore(user6Address, 450);
         await trustScore.connect(owner).setTrustScore(user7Address, 450);
 
-        await deTrustToken.connect(owner).mintFor(user1Address, 1000);
-        await deTrustToken.connect(owner).mintFor(user2Address, 1000);
+        await deTrustToken.connect(owner).mintFor(user1Address, 1020);
+        await deTrustToken.connect(owner).mintFor(user2Address, 1020);
         await deTrustToken.connect(owner).mintFor(user3Address, 600);
         await deTrustToken.connect(owner).mintFor(user4Address, 600);
         await deTrustToken.connect(owner).mintFor(user5Address, 600);
@@ -63,13 +60,25 @@ describe("VotingMechanism", async () => {
 
         await baseContract.connect(owner).setVotingAccess(votingMechanismAddress);
 
+        await deTrustToken.connect(user1).approve(baseContractAddress, 20);
+        await deTrustToken.connect(user2).approve(baseContractAddress, 20); 
+
+        const commonInput =
+            [baseContractAddress, [user1Address, user3Address], 
+            [user2Address, user4Address], user2Address, user1Address,
+            "common1", "type1", ["ob1", "ob2"], ["desc1", "desc2"], [10000000000, 30000000000], 2, 0];
+
+        const CommonContract = await ethers.getContractFactory("CommonContract");
+        const commonContract = await CommonContract.connect(user2).deploy(commonInput);
+        contractAddr = await commonContract.getAddress();
+
         const creationTime = Math.floor(Date.now() / 1000);
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
         const validProperties1 = [
             1, 
-            1, 
+            0, 
             creationTime, 
             1, 
             0, 
@@ -97,19 +106,21 @@ describe("VotingMechanism", async () => {
         expect(initTokenBalance5).to.equal(600);
         expect(initTokenBalance6).to.equal(600);
         expect(initTokenBalance7).to.equal(600);
-        expect(initTokenBalanceBase).to.equal(500);
+        expect(initTokenBalanceBase).to.equal(540);
 
-        const vote1 = await votingMechanism.connect(user3).verifyContract(1, 1, user3Address);
-        expect(vote1).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user3Address, 1);
-        const vote2 = await votingMechanism.connect(user4).verifyContract(1, 1, user4Address);
-        expect(vote2).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user4Address, 1);
-        const vote3 = await votingMechanism.connect(user5).verifyContract(1, 2, user5Address);
-        expect(vote3).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user5Address, 2);
-        const vote4 = await votingMechanism.connect(user6).verifyContract(1, 1, user6Address);
-        expect(vote4).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user6Address, 1);
-        const vote5 = await votingMechanism.connect(user7).verifyContract(1, 1, user7Address);
+        const currentTime = Math.floor(Date.now() / 1000);
+
+        const vote1 = await votingMechanism.connect(user3).verifyContract(1, 1, user3Address, currentTime);
+        expect(vote1).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user3Address, 1, currentTime);
+        const vote2 = await votingMechanism.connect(user4).verifyContract(1, 1, user4Address, currentTime);
+        expect(vote2).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user4Address, 1, currentTime);
+        const vote3 = await votingMechanism.connect(user5).verifyContract(1, 2, user5Address, currentTime);
+        expect(vote3).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user5Address, 2, currentTime);
+        const vote4 = await votingMechanism.connect(user6).verifyContract(1, 1, user6Address, currentTime);
+        expect(vote4).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user6Address, 1, currentTime);
+        const vote5 = await votingMechanism.connect(user7).verifyContract(1, 1, user7Address, currentTime);
         expect(vote5)
-        .to.emit(votingMechanism, "VerifiedContract").withArgs(1, user7Address, 1)
+        .to.emit(votingMechanism, "VerifiedContract").withArgs(1, user7Address, 1, currentTime)
         .and.to.emit(votingMechanism, "PassedVerification").withArgs(1);
 
         const generalRepo = await baseContract.getGeneralRepo(1);
@@ -128,7 +139,7 @@ describe("VotingMechanism", async () => {
         expect(finalTokenBalance5).to.equal(610);
         expect(finalTokenBalance6).to.equal(610);
         expect(finalTokenBalance7).to.equal(610);
-        expect(finalTokenBalanceBase).to.equal(450);
+        expect(finalTokenBalanceBase).to.equal(490);
 
     });
 
@@ -143,8 +154,10 @@ describe("VotingMechanism", async () => {
         expect(initTrustScore2).to.equal(450);
         expect(initTrustScore5).to.equal(450);
 
-        const resolve = await votingMechanism.resolveVerification(1);
-        expect(resolve).to.emit(votingMechanism, "VerificationResolved").withArgs(1, 1);
+        const currentTime = Math.floor(Date.now() / 1000);
+
+        const resolve = await votingMechanism.resolveVerification(1, currentTime);
+        expect(resolve).to.emit(votingMechanism, "VerificationResolved").withArgs(1, 1, currentTime);
 
         const generalRepo = await baseContract.getGeneralRepo(1);
         expect(generalRepo[1]).to.equal(2);

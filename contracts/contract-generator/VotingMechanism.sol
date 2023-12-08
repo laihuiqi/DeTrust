@@ -16,17 +16,22 @@ contract VotingMechanism {
     uint256 minimumTimeFrame = 1 days;
     uint256 verificationCutOffTime = 2 days;
 
+    uint256 currentTime;
+
     constructor(BaseContract _base, DeTrustToken _deTrustToken, TrustScore _trustScore) {
         base = _base;
         deTrustToken = _deTrustToken;
         trustScore = _trustScore;
+        currentTime = block.timestamp;
     }
 
     mapping(uint256 => address[]) contractVerifyList;
     mapping(uint256 => address[]) contractFraudList;
 
-    event ContractVerified(uint256 indexed _contractId, address indexed _verifier, ContractUtility.VerificationState state);
-    event VerificationResolved(uint256 indexed _contractId, ContractUtility.VerificationState _vstate);
+    event ContractVerified(uint256 indexed _contractId, address indexed _verifier, 
+        ContractUtility.VerificationState state, uint256 _curr);
+    event VerificationResolved(uint256 indexed _contractId, 
+        ContractUtility.VerificationState _vstate, uint256 _curr);
     event PassedVerification(uint256 _contractId);
     event FailedVerification(uint256 _contractId);
 
@@ -53,7 +58,8 @@ contract VotingMechanism {
           and the verifier amount is not exceeded 
           and the maximum verification time limit has not passed.
      */
-    modifier verifyAllowed(uint256 _contractId) {
+    modifier verifyAllowed(uint256 _contractId, uint256 _curr) {
+        currentTime = _curr;
 
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
 
@@ -61,13 +67,13 @@ contract VotingMechanism {
             "Contract is already verified!");
         
         unchecked {
-            require(block.timestamp - properties.creationTime <= verificationCutOffTime, 
+            require(currentTime - properties.creationTime <= verificationCutOffTime, 
                 "Verification time is over!");
 
-            bool verifierExceeded = block.timestamp - properties.creationTime > minimumTimeFrame && 
+            bool verifierExceeded = currentTime - properties.creationTime > minimumTimeFrame && 
                     properties.legitAmount.add(properties.fraudAmount) < properties.verifierNeeded;
 
-            require(block.timestamp - properties.creationTime <= minimumTimeFrame ||
+            require(currentTime - properties.creationTime <= minimumTimeFrame ||
                 verifierExceeded, "Verifier amount exceeded!");
         }
         _;
@@ -82,16 +88,17 @@ contract VotingMechanism {
           and the verifier amount is reached or exceeded.
         * The contract could be verified if the maximum verification time limit has passed.
      */
-    modifier verificationCanBeResolved(uint256 _contractId) {
+    modifier verificationCanBeResolved(uint256 _contractId, uint256 _curr) {
         /*
+        currentTime = _curr;
 
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
 
         require(properties.isVerified == ContractUtility.VerificationState.PENDING, 
             "Contract is not available for verification!");
 
-        require(block.timestamp - properties.creationTime > verificationCutOffTime ||
-            (block.timestamp - properties.creationTime > minimumTimeFrame &&
+        require(currentTime - properties.creationTime > verificationCutOffTime ||
+            (currentTime - properties.creationTime > minimumTimeFrame &&
             (properties.legitAmount.add(properties.fraudAmount) >= 
                 properties.verifierNeeded)), 
             "Verification is not availble yet!");
@@ -135,8 +142,9 @@ contract VotingMechanism {
     // verify the contract
     // contract can be verified by any address except involvers
     function verifyContract(uint256 _contractId, ContractUtility.VerificationState _vstate, 
-        address _wallet) public notFreeze(_contractId) isSigned(_contractId) verifyAllowed(_contractId) 
-        notInvolved(_contractId, _wallet) returns (ContractUtility.VerificationState) {
+        address _wallet, uint256 _curr) public notFreeze(_contractId) isSigned(_contractId) 
+        verifyAllowed(_contractId, _curr) notInvolved(_contractId, _wallet) returns (ContractUtility.VerificationState) {
+        currentTime = _curr;
 
         require(_vstate != ContractUtility.VerificationState.PENDING, "Invalid verification option!");
         
@@ -156,9 +164,9 @@ contract VotingMechanism {
 
         deTrustToken.transferFrom(address(base), _wallet, 10);
 
-        emit ContractVerified(_contractId, msg.sender, _vstate);
+        emit ContractVerified(_contractId, msg.sender, _vstate, currentTime);
 
-        if (block.timestamp - properties.creationTime > minimumTimeFrame) {
+        if (currentTime - properties.creationTime > minimumTimeFrame) {
             if (properties.legitAmount >= properties.verifierNeeded / 2) {
                 properties.isVerified = ContractUtility.VerificationState.LEGITIMATE;
                 base.setGeneralRepo(_contractId, properties);
@@ -186,8 +194,9 @@ contract VotingMechanism {
         * FRAUDULENT:
             * The payer and the payee will be deducted with 500 DTRs and 2 trust scores.
      */
-    function resolveVerification(uint256 _contractId) public notFreeze(_contractId) 
-        isSigned(_contractId) verificationCanBeResolved(_contractId) {
+    function resolveVerification(uint256 _contractId, uint256 _curr) public notFreeze(_contractId) 
+        isSigned(_contractId) verificationCanBeResolved(_contractId, _curr) {
+        currentTime = _curr;
 
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
 
@@ -226,6 +235,6 @@ contract VotingMechanism {
 
         }
 
-        emit VerificationResolved(_contractId, properties.isVerified);
+        emit VerificationResolved(_contractId, properties.isVerified, currentTime);
     }
 }
