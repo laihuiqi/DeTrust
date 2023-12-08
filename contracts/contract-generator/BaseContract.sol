@@ -150,7 +150,8 @@ contract BaseContract {
                 + trustScore.getVerifierAmount(trustScore.getTrustTier(repoInput._payee)),
             0,
             0,
-            false
+            false,
+            0
         );
         
         emit ContractLogged(repoInput._contractAddress, counter);

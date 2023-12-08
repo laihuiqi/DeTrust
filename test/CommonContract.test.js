@@ -10,7 +10,7 @@ describe("CommonContract", async () => {
     let baseContract, commonContract, trustScore, deTrustToken, votingMechanism;
     let owner, user1, user2, user3, user4, a1, a2, a3, a4, a5;
 
-    let contractInput;
+    let creationTime, verificationStart, string1, string2;
     
     before(async () => {
 
@@ -64,22 +64,14 @@ describe("CommonContract", async () => {
         expect(finalTokenBalance1).to.equal(980);
         expect(finalTokenBalance2).to.equal(980);
 
-        const creationTime = Math.floor((Date.now() - 600 * 1000) / 1000);
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
+        creationTime = Math.floor(Date.now() / 1000) - 9000;
+        verificationStart = Math.floor(Date.now() / 1000) - 6000;
+        string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
+        string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
         const changedProperties = [
-            1, 
-            2, 
-            creationTime, 
-            0,
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            2,
-            false];
+            1, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 2, false, verificationStart];
 
         const changeProperties = await baseContract.connect(owner).setGeneralRepo(1, changedProperties);
         expect(changeProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(1);
@@ -217,24 +209,10 @@ describe("CommonContract", async () => {
 
         const CommonContract = await ethers.getContractFactory("CommonContract");
         const newCommonContract = await CommonContract.connect(user2).deploy(newCommonInput);
-        const newCommonContractAddress = await newCommonContract.getAddress();
-
-        const creationTime = Math.floor((Date.now() - 600 * 1000) / 1000);
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
         const changedProperties1 = [
-            2, 
-            0, 
-            creationTime, 
-            0,
-            0, 
-            [user1Address, bytes32(0), user2Address, bytes32(0), 0],
-            0,
-            8,
-            0,
-            0,
-            false];
+            2, 0, creationTime, 0, 0, [user1Address, bytes32(0), user2Address, bytes32(0), 0],
+            0, 8, 0, 0, false, verificationStart];
 
         const changeProperties1 = await baseContract.connect(owner).setGeneralRepo(2, changedProperties1);
         expect(changeProperties1).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
@@ -246,17 +224,8 @@ describe("CommonContract", async () => {
             .to.be.revertedWith("Contract is not ready!");
 
         const changedProperties2 = [
-            2, 
-            5, 
-            creationTime, 
-            0,
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            2,
-            false];
+            2, 5, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 2, false, verificationStart];
     
         const changeProperties2 = await baseContract.connect(owner).setGeneralRepo(2, changedProperties2);
         expect(changeProperties2).to.emit(baseContract, "PropertiesRecorded").withArgs(2);

@@ -8,7 +8,8 @@ describe("CommunicationChannel", async () => {
     let baseContractAddress, communicationChannelAddress, trustScoreAddress, deTrustTokenAddress;
     let baseContract, communicationChannel, trustScore, deTrustToken;
     let owner, user1, user2, a1, a2, a3, a4, a5;
-    
+    let creationTime, verificationStart, string1, string2;
+
     before(async () => {
 
         [owner, user1, user2, a1, a2, a3, a4, a5] = await ethers.getSigners();
@@ -34,25 +35,17 @@ describe("CommunicationChannel", async () => {
         await deTrustToken.connect(owner).setApproval(baseContractAddress);
         await trustScore.connect(owner).approveAddress(baseContractAddress);
         await baseContract.connect(owner).setApproval(communicationChannelAddress);
+
+        creationTime = Math.floor(Date.now() / 1000) - 9000;
+        verificationStart = Math.floor(Date.now() / 1000) - 6000;
+        string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
+        string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
     });
 
     it("Should be able to send message", async () => {
-        const creationTime = Math.floor(Date.now() / 1000) - 600;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
-
         const validProperties1 = [
-            1, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            1, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(1, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(1);
@@ -70,22 +63,9 @@ describe("CommunicationChannel", async () => {
     });
 
     it ("Should be able to retrieve messages", async () => {
-        const creationTime = Math.floor(Date.now() / 1000) - 600;
-        const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
-        const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
-
         const validProperties1 = [
-            2, 
-            2, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            2, 2, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(2, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
@@ -143,22 +123,14 @@ describe("CommunicationChannel", async () => {
     });
 
     it ("Messaging on inactivate contract should be freeze", async () => {
-        const creationTime = Math.floor(Date.now() / 1000) - 600;
+        const creationTime = Math.floor(Date.now() / 1000) - 9000;
+        const verificationStart = Math.floor(Date.now() / 1000) - 6000;
         const string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
         const string2 = web3.utils.padLeft(web3.utils.fromAscii("ad2"), 64);
 
         const validProperties1 = [
-            3, 
-            5, 
-            creationTime, 
-            0, 
-            0, 
-            [user1Address, string1, user2Address, string2, 2],
-            1,
-            8,
-            4,
-            0,
-            false];
+            3, 5, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
+            1, 8, 4, 0, false, verificationStart];
 
         const setProperties = await baseContract.setGeneralRepo(3, validProperties1);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(3);
