@@ -28,6 +28,8 @@ framework.
 `CommonContract.sol` - common contract template
 
 ### Side Contracts
+Contracts other than stated in the `Main Contracts` session are extensions for current iteration, future work needed.
+
 Various contract templates.
 
 Available for next iteration service enhancement.
