@@ -226,7 +226,7 @@ describe("CommonContract", async () => {
         const changedProperties2 = [
             2, 5, creationTime, 0, 0, [user1Address, string1, user2Address, string2, 2],
             1, 8, 4, 2, false, verificationStart];
-    
+      
         const changeProperties2 = await baseContract.connect(owner).setGeneralRepo(2, changedProperties2);
         expect(changeProperties2).to.emit(baseContract, "PropertiesRecorded").withArgs(2);
 

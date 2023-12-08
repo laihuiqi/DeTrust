@@ -118,6 +118,7 @@ describe("VotingMechanism", async () => {
             "common1", "type1", ["ob1"], ["desc1"], [10000000000], 1, 0];
 
         await CommonContract.connect(a2).deploy(commonInput2);
+
     });
 
     it ("Should be able to vote a contract", async () => {

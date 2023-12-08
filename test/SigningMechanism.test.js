@@ -37,8 +37,7 @@ describe("SigningMechanism", async () => {
         await deTrustToken.connect(owner).setApproval(baseContractAddress);
         await trustScore.connect(owner).approveAddress(baseContractAddress);
         await baseContract.connect(owner).setApproval(signingMechanismAddress);
-
-        
+      
         creationTime = Math.floor(Date.now() / 1000) - 9000;
         verificationStart = Math.floor(Date.now() / 1000) - 6000;
         hash1 = await signingMechanism.connect(user1).getMessageHash(
@@ -123,7 +122,7 @@ describe("SigningMechanism", async () => {
         const validProperties2 = [
             3, 5, creationTime, 0, 0, [user1Address, hash1, user2Address, hash2, 2],
             1, 8, 4, 0, false, verificationStart];
-
+      
         const setProperties = await baseContract.setGeneralRepo(3, validProperties2);
         expect(setProperties).to.emit(baseContract, "PropertiesRecorded").withArgs(3);
 

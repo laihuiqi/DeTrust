@@ -35,7 +35,7 @@ describe("CommunicationChannel", async () => {
         await deTrustToken.connect(owner).setApproval(baseContractAddress);
         await trustScore.connect(owner).approveAddress(baseContractAddress);
         await baseContract.connect(owner).setApproval(communicationChannelAddress);
-
+      
         creationTime = Math.floor(Date.now() / 1000) - 9000;
         verificationStart = Math.floor(Date.now() / 1000) - 6000;
         string1 = web3.utils.padLeft(web3.utils.fromAscii("ad1"), 64);
