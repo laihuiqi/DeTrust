@@ -71,7 +71,7 @@ contract VotingMechanism {
         require(block.timestamp - properties.verificationStart > verificationCutOffTime ||
             (block.timestamp - properties.verificationStart > minimumTimeFrame &&
             (properties.legitAmount >= properties.verifierNeeded / 2)), 
-            "Verification is not available yet!");
+            "Resolve is not available yet!");
             
         _;
     }

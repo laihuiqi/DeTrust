@@ -143,9 +143,7 @@ describe("VotingMechanism", async () => {
         const vote4 = await votingMechanism.connect(user6).verifyContract(1, 1, user6Address);
         expect(vote4).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user6Address, 1);
         const vote5 = await votingMechanism.connect(user7).verifyContract(1, 1, user7Address);
-        expect(vote5)
-        .to.emit(votingMechanism, "VerifiedContract").withArgs(1, user7Address, 1)
-        .and.to.emit(votingMechanism, "PassedVerification").withArgs(1);
+        expect(vote5).to.emit(votingMechanism, "VerifiedContract").withArgs(1, user7Address, 1)
 
         const generalRepo = await baseContract.getGeneralRepo(1);
         expect(generalRepo[6]).to.equal(0);
@@ -178,11 +176,15 @@ describe("VotingMechanism", async () => {
         expect(initTrustScore2).to.equal(450);
         expect(initTrustScore5).to.equal(450);
 
+        await expect(votingMechanism.resolveVerification(1))
+            .to.be.revertedWith("Resolve is not available yet!");
+
         const blockNum = await ethers.provider.getBlockNumber();
         const now = await ethers.provider.getBlock(blockNum);
         await time.setNextBlockTimestamp(now.timestamp + 24 * 3600);
 
         const resolve = await votingMechanism.resolveVerification(1);
+        expect(resolve).to.emit(votingMechanism, "PassedVerification").withArgs(1)
         expect(resolve).to.emit(votingMechanism, "VerificationResolved").withArgs(1, 1);
 
         const generalRepo = await baseContract.getGeneralRepo(1);
@@ -217,9 +219,7 @@ describe("VotingMechanism", async () => {
         const vote3 = await votingMechanism.connect(a5).verifyContract(2, 2, a5Address);
         expect(vote3).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a5Address, 2);
         const vote4 = await votingMechanism.connect(a6).verifyContract(2, 2, a6Address);
-        expect(vote4)
-        .to.emit(votingMechanism, "VerifiedContract").withArgs(2, a6Address, 2)
-        .and.to.emit(votingMechanism, "FailedVerification").withArgs(2);
+        expect(vote4).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a6Address, 2)
 
         const generalRepo = await baseContract.getGeneralRepo(2);
         expect(generalRepo[6]).to.equal(0);
@@ -246,6 +246,7 @@ describe("VotingMechanism", async () => {
         await time.setNextBlockTimestamp(now.timestamp + 48 * 3600);
 
         const resolve = await votingMechanism.resolveVerification(2);
+        expect(resolve).to.emit(votingMechanism, "FailedVerification").withArgs(2)
         expect(resolve).to.emit(votingMechanism, "VerificationResolved").withArgs(2, 2);
 
         const generalRepo = await baseContract.getGeneralRepo(2);
