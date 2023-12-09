@@ -157,6 +157,9 @@ Execute the steps below using address 1.
    2. SigningMechanismAddress
    3. VotingMechanismAddress
 
+1. `setVotingAccess` in BaseContract.
+   1. VotingMechanismAddress
+
 1. `setTrustScore` in TrustScore. 
    - OPTIONAL: Default trust score is 250.
    
