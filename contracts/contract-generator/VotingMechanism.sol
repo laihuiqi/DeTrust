@@ -192,9 +192,17 @@ contract VotingMechanism {
             
         } else {
             base.voidContract(_contractId);
+            {
+            address w1 = base.getWalletAddress(properties.signature.payer);
+            address w2 = base.getWalletAddress(properties.signature.payee);
+            uint256 wallet1 = deTrustToken.balanceOf(w1);
+            uint256 wallet2 = deTrustToken.balanceOf(w2);
+            uint256 burn1 = wallet1 > 500 ? wallet1 - 500 : 0;
+            uint256 burn2 = wallet2 > 500 ? wallet2 - 500 : 0;
             
-            deTrustToken.burnFor(base.getWalletAddress(properties.signature.payer), 500);
-            deTrustToken.burnFor(base.getWalletAddress(properties.signature.payee), 500);
+            deTrustToken.burnFor(w1, burn1);
+            deTrustToken.burnFor(w2, burn2);
+            }
             trustScore.decreaseTrustScore(properties.signature.payer, 2);
             trustScore.decreaseTrustScore(properties.signature.payee, 2);
 

@@ -105,7 +105,7 @@ describe("VotingMechanism", async () => {
         await trustScore.connect(owner).setTrustScore(a7Address, 20);
 
         await deTrustToken.connect(owner).mintFor(a1Address, 1020); 
-        await deTrustToken.connect(owner).mintFor(a2Address, 1020);
+        await deTrustToken.connect(owner).mintFor(a2Address, 420);
         await deTrustToken.connect(owner).mintFor(a3Address, 600);
         await deTrustToken.connect(owner).mintFor(a4Address, 600);
         await deTrustToken.connect(owner).mintFor(a5Address, 600);
@@ -240,7 +240,7 @@ describe("VotingMechanism", async () => {
         const initTokenBalanceA1 = await deTrustToken.balanceOf(a1Address);
         expect(initTokenBalanceA1).to.equal(1000);
         const initTokenBalanceA2 = await deTrustToken.balanceOf(a2Address);
-        expect(initTokenBalanceA2).to.equal(1000);
+        expect(initTokenBalanceA2).to.equal(400);
 
         const initTrustScore1 = await trustScore.getTrustScore(a1Address);
         const initTrustScore2 = await trustScore.getTrustScore(a2Address);
@@ -262,7 +262,7 @@ describe("VotingMechanism", async () => {
         const finalTokenBalanceA1 = await deTrustToken.balanceOf(a1Address);
         expect(finalTokenBalanceA1).to.equal(500);
         const finalTokenBalanceA2 = await deTrustToken.balanceOf(a2Address);
-        expect(finalTokenBalanceA2).to.equal(500);
+        expect(finalTokenBalanceA2).to.equal(400);
 
         const finalTrustScore1 = await trustScore.getTrustScore(a1Address);
         const finalTrustScore2 = await trustScore.getTrustScore(a2Address);
