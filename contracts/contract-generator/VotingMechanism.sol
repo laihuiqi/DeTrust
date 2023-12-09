@@ -90,7 +90,6 @@ contract VotingMechanism {
             (block.timestamp - properties.verificationStart > minimumTimeFrame &&
             (properties.legitAmount >= properties.verifierNeeded / 2)), 
             "Resolve is not available yet!");
-            
         _;
     }
 
@@ -190,11 +189,6 @@ contract VotingMechanism {
 
         if (properties.isVerified == ContractUtility.VerificationState.LEGITIMATE) {
             base.proceedContract(_contractId);
-
-            for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
-                deTrustToken.burnFor(base.getWalletAddress(contractFraudList[_contractId][i]), 100);
-                trustScore.decreaseTrustScore(contractFraudList[_contractId][i], 1);
-            }
             
         } else {
             base.voidContract(_contractId);

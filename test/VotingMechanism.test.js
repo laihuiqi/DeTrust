@@ -198,14 +198,14 @@ describe("VotingMechanism", async () => {
         expect(generalRepo[6]).to.equal(1);
 
         const finalTokenBalance5 = await deTrustToken.balanceOf(user5Address);
-        expect(finalTokenBalance5).to.equal(510);
+        expect(finalTokenBalance5).to.equal(610);
 
         const finalTrustScore1 = await trustScore.getTrustScore(user1Address);
         const finalTrustScore2 = await trustScore.getTrustScore(user2Address);
         const finalTrustScore5 = await trustScore.getTrustScore(user5Address);
         expect(finalTrustScore1).to.equal(450);
         expect(finalTrustScore2).to.equal(450);
-        expect(finalTrustScore5).to.equal(449);
+        expect(finalTrustScore5).to.equal(450);
     });
 
     it ("should be able to vote down a contract", async () => {
