@@ -81,6 +81,7 @@ contract VotingMechanism {
     }
 
     modifier verificationCanBeResolved(uint256 _contractId) {
+        
         ContractUtility.BasicProperties memory properties = base.getGeneralRepo(_contractId);
 
         require(properties.isVerified == ContractUtility.VerificationState.PENDING, 
@@ -90,6 +91,7 @@ contract VotingMechanism {
             (block.timestamp - properties.verificationStart > minimumTimeFrame &&
             (properties.legitAmount >= properties.verifierNeeded / 2)), 
             "Resolve is not available yet!");
+            
         _;
     }
 
@@ -189,6 +191,14 @@ contract VotingMechanism {
 
         if (properties.isVerified == ContractUtility.VerificationState.LEGITIMATE) {
             base.proceedContract(_contractId);
+
+            for (uint256 i = 0; i < contractFraudList[_contractId].length; i++) {
+                address w = base.getWalletAddress(contractFraudList[_contractId][i]);
+                uint256 wBalance = deTrustToken.balanceOf(w);
+                uint256 wBurn = wBalance > 110 ? 110 : (wBalance > 10 ? 10 : wBalance);
+                deTrustToken.burnFor(w, wBurn);
+                trustScore.decreaseTrustScore(contractFraudList[_contractId][i], 1);
+            }
             
         } else {
             base.voidContract(_contractId);
@@ -207,7 +217,10 @@ contract VotingMechanism {
             trustScore.decreaseTrustScore(properties.signature.payee, 2);
 
             for (uint256 i = 0; i < contractVerifyList[_contractId].length; i++) {
-                deTrustToken.burnFor(base.getWalletAddress(contractVerifyList[_contractId][i]), 100);
+                address w = base.getWalletAddress(contractVerifyList[_contractId][i]);
+                uint256 wBalance = deTrustToken.balanceOf(w);
+                uint256 wBurn = wBalance > 110 ? 110 : (wBalance > 10 ? 10 : wBalance);
+                deTrustToken.burnFor(w, wBurn);
                 trustScore.decreaseTrustScore(contractVerifyList[_contractId][i], 1);
             }
 

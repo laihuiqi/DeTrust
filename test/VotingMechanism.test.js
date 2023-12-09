@@ -6,16 +6,16 @@ const web3 = require("web3");
 describe("VotingMechanism", async () => {
 
     let ownerAddress, user1Address, user2Address, user3Address, user4Address, user5Address, user6Address, user7Address;
-    let a1Address, a2Address, a3Address, a4Address, a5Address, a6Address, a7Address;
+    let a1Address, a2Address, a3Address, a4Address, a5Address, a6Address, a7Address, a8Address, a9Address;
     let trustScoreAddress, deTrustTokenAddress, baseContractAddress, votingMechanismAddress, contractAddr;
     let trustScore, deTrustToken, baseContract, votingMechanism;
-    let owner, user1, user2, user3, user4, user5, user6, user7, a1, a2, a3, a4, a5, a6, a7;
+    let owner, user1, user2, user3, user4, user5, user6, user7, a1, a2, a3, a4, a5, a6, a7, a8, a9;
 
     let creationTime, verificationStart, string1, string2;
     
     before(async () => {
 
-        [owner, user1, user2, user3, user4, user5, user6, user7, a1, a2, a3, a4, a5, a6, a7] = await ethers.getSigners();
+        [owner, user1, user2, user3, user4, user5, user6, user7, a1, a2, a3, a4, a5, a6, a7, a8, a9] = await ethers.getSigners();
 
         ownerAddress = await owner.getAddress();
         user1Address = await user1.getAddress();
@@ -95,6 +95,8 @@ describe("VotingMechanism", async () => {
         a5Address = await a5.getAddress();
         a6Address = await a6.getAddress();
         a7Address = await a7.getAddress();
+        a8Address = await a8.getAddress();
+        a9Address = await a9.getAddress();
 
         await trustScore.connect(owner).setTrustScore(a1Address, 450);
         await trustScore.connect(owner).setTrustScore(a2Address, 450);
@@ -103,6 +105,8 @@ describe("VotingMechanism", async () => {
         await trustScore.connect(owner).setTrustScore(a5Address, 450);
         await trustScore.connect(owner).setTrustScore(a6Address, 450);
         await trustScore.connect(owner).setTrustScore(a7Address, 20);
+        await trustScore.connect(owner).setTrustScore(a8Address, 450);
+        await trustScore.connect(owner).setTrustScore(a9Address, 450);
 
         await deTrustToken.connect(owner).mintFor(a1Address, 1020); 
         await deTrustToken.connect(owner).mintFor(a2Address, 420);
@@ -110,6 +114,8 @@ describe("VotingMechanism", async () => {
         await deTrustToken.connect(owner).mintFor(a4Address, 600);
         await deTrustToken.connect(owner).mintFor(a5Address, 600);
         await deTrustToken.connect(owner).mintFor(a6Address, 600);
+        await deTrustToken.connect(owner).mintFor(a8Address, 600);
+        await deTrustToken.connect(owner).mintFor(a9Address, 60);
 
         await deTrustToken.connect(a1).approve(baseContractAddress, 20);
         await deTrustToken.connect(a2).approve(baseContractAddress, 20);
@@ -198,14 +204,14 @@ describe("VotingMechanism", async () => {
         expect(generalRepo[6]).to.equal(1);
 
         const finalTokenBalance5 = await deTrustToken.balanceOf(user5Address);
-        expect(finalTokenBalance5).to.equal(610);
+        expect(finalTokenBalance5).to.equal(500);
 
         const finalTrustScore1 = await trustScore.getTrustScore(user1Address);
         const finalTrustScore2 = await trustScore.getTrustScore(user2Address);
         const finalTrustScore5 = await trustScore.getTrustScore(user5Address);
         expect(finalTrustScore1).to.equal(450);
         expect(finalTrustScore2).to.equal(450);
-        expect(finalTrustScore5).to.equal(450);
+        expect(finalTrustScore5).to.equal(449);
     });
 
     it ("should be able to vote down a contract", async () => {
@@ -222,6 +228,10 @@ describe("VotingMechanism", async () => {
         expect(vote1).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a3Address, 2);
         const vote2 = await votingMechanism.connect(a4).verifyContract(2, 2, a4Address);
         expect(vote2).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a4Address, 2);
+        const voteF = await votingMechanism.connect(a8).verifyContract(2, 1, a8Address);
+        expect(voteF).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a8Address, 1);
+        const voteF2 = await votingMechanism.connect(a9).verifyContract(2, 1, a9Address);
+        expect(voteF2).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a9Address, 1);
         const vote3 = await votingMechanism.connect(a5).verifyContract(2, 2, a5Address);
         expect(vote3).to.emit(votingMechanism, "VerifiedContract").withArgs(2, a5Address, 2);
         const vote4 = await votingMechanism.connect(a6).verifyContract(2, 2, a6Address);
@@ -229,11 +239,11 @@ describe("VotingMechanism", async () => {
 
         const generalRepo = await baseContract.getGeneralRepo(2);
         expect(generalRepo[6]).to.equal(0);
-        expect(generalRepo[8]).to.equal(0);
+        expect(generalRepo[8]).to.equal(2);
         expect(generalRepo[9]).to.equal(4);
 
         const finalTokenBalanceBase = await deTrustToken.balanceOf(baseContractAddress);
-        expect(finalTokenBalanceBase).to.equal(490);
+        expect(finalTokenBalanceBase).to.equal(470);
     });
 
     it ("Should be able to resolve fraudulent verification result", async () => {
@@ -241,11 +251,19 @@ describe("VotingMechanism", async () => {
         expect(initTokenBalanceA1).to.equal(1000);
         const initTokenBalanceA2 = await deTrustToken.balanceOf(a2Address);
         expect(initTokenBalanceA2).to.equal(400);
+        const initTokenBalance8 = await deTrustToken.balanceOf(a8Address);
+        expect(initTokenBalance8).to.equal(610);
+        const initTokenBalance9 = await deTrustToken.balanceOf(a9Address);
+        expect(initTokenBalance9).to.equal(70);
 
         const initTrustScore1 = await trustScore.getTrustScore(a1Address);
         const initTrustScore2 = await trustScore.getTrustScore(a2Address);
+        const initTrustScore8 = await trustScore.getTrustScore(a8Address);
+        const initTrustScore9 = await trustScore.getTrustScore(a9Address);
         expect(initTrustScore1).to.equal(450);
         expect(initTrustScore2).to.equal(450);
+        expect(initTrustScore8).to.equal(450);
+        expect(initTrustScore9).to.equal(450);
 
         const blockNum = await ethers.provider.getBlockNumber();
         const now = await ethers.provider.getBlock(blockNum);
@@ -263,11 +281,19 @@ describe("VotingMechanism", async () => {
         expect(finalTokenBalanceA1).to.equal(500);
         const finalTokenBalanceA2 = await deTrustToken.balanceOf(a2Address);
         expect(finalTokenBalanceA2).to.equal(400);
+        const finalTokenBalance8 = await deTrustToken.balanceOf(a8Address);
+        expect(finalTokenBalance8).to.equal(500);
+        const finalTokenBalance9 = await deTrustToken.balanceOf(a9Address);
+        expect(finalTokenBalance9).to.equal(60);
 
         const finalTrustScore1 = await trustScore.getTrustScore(a1Address);
         const finalTrustScore2 = await trustScore.getTrustScore(a2Address);
+        const finalTrustScore8 = await trustScore.getTrustScore(a8Address);
+        const finalTrustScore9 = await trustScore.getTrustScore(a9Address);
         expect(finalTrustScore1).to.equal(448);
         expect(finalTrustScore2).to.equal(448);
+        expect(finalTrustScore8).to.equal(449);
+        expect(finalTrustScore9).to.equal(449);
 
     });
 
