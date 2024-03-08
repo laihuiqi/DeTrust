@@ -11,6 +11,15 @@ framework.
 > 
 > Please try to download it or open it using the suggested third-party app if video preview is not allowed in Google Drive
 
+## Contributors Credit
+NUS IS4302 AY23/24 Sem 1 Group 9
+- Ang Rachel
+- Lai Hui Qi
+- Low Mei Lin
+- Ong Jing Hao
+- Passion Goh Wei Ling
+- Vanessa Tan Wee Kah
+
 ## Contracts Implementation
 
 ### Main Contracts
