@@ -7,6 +7,8 @@ confidence, assured that their agreements are backed by a robust and impartial
 framework.
 
 **NOTE**
+> Access documentation [here](https://laihuiqi.github.io/DeTrust/)
+>
 > Backend (Remix) Demo Video Link : [Demo Video](https://drive.google.com/file/d/1LswKzXUcpplpCRLsxTUT6dFQOf27OK_9/view?usp=sharing)
 > 
 > Please try to download it or open it using the suggested third-party app if video preview is not allowed in Google Drive
