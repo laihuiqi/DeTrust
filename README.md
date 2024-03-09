@@ -21,6 +21,8 @@ NUS IS4302 AY23/24 Sem 1 Group 9
 - Ong Jing Hao
 - Passion Goh Wei Ling
 - Vanessa Tan Wee Kah
+  
+Code contribution statistics please refer to [original repo](https://github.com/jinghaoong/DeTrust)
 
 ## Contracts Implementation
 
